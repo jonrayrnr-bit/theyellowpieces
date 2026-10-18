@@ -1,0 +1,44 @@
+<!-- Supabase → Authentication → Emails → Templates → "Confirm signup"
+     Subject: Confirm your email for The Yellow Pieces -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EFE6CF;padding:32px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background:#FBF5E2;border-radius:6px;border-top:6px solid #F5D547;">
+        <tr>
+          <td style="padding:28px 28px 8px;font-size:22px;font-weight:bold;color:#2B2B2B;">
+            <span style="font-family:Georgia,'Times New Roman',serif;font-weight:normal;">The <b style="background:#F5D547;padding:0 4px;">Yellow Pieces</b></span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 28px 0;font-size:16px;line-height:24px;color:#2B2B2B;">
+            <p style="margin:0 0 14px;font-size:20px;font-weight:bold;">Welcome to The Yellow Pieces.</p>
+            <p style="margin:0 0 14px;">Thanks for joining. Confirm your email and you're ready to share the lines, mottos and stories worth passing down.</p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:4px 28px 6px;font-size:14px;color:#6B6455;">Your sign-in code</td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:0 28px 14px;">
+            <div style="display:inline-block;background:#FFFFFF;border:2px dashed #2B2B2B;border-radius:6px;padding:10px 22px;font-family:'Courier New',Courier,monospace;font-size:30px;font-weight:bold;letter-spacing:6px;color:#2B2B2B;">{{ .Token }}</div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:0 28px 8px;font-size:14px;color:#6B6455;">Type it on the Yellow Pieces sign-in screen — or, on this same device and browser, just tap:</td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:10px 28px 22px;">
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2B2B2B;color:#FFF7D6;text-decoration:none;font-weight:bold;font-size:16px;padding:13px 26px;border-radius:5px;">Confirm my email</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 28px 26px;font-size:13px;line-height:20px;color:#6B6455;">
+            <p style="margin:0 0 10px;">Button not working? Paste this link into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#6B6455;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+            <p style="margin:0;">Didn't sign up for The Yellow Pieces? You can ignore this email — no account will be created.</p>
+          </td>
+        </tr>
+      </table>
+      <p style="max-width:480px;margin:14px auto 0;font-size:12px;color:#9A927F;">The Yellow Pieces · theyellowpieces.com</p>
+    </td>
+  </tr>
+</table>

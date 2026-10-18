@@ -1,0 +1,13 @@
+{
+  // Cloudflare settings: serves this folder as a static site.
+  "name": "theyellowpieces",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./"
+  },
+  // Put the site on theyellowpieces.com (and keep the .workers.dev test address).
+  "routes": [
+    { "pattern": "theyellowpieces.com", "custom_domain": true }
+  ],
+  "workers_dev": true
+}
