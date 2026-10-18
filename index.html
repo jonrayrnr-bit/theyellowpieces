@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>The Yellow Pieces</title>
   <meta name="description" content="Highlight the best words in your life: great lines, words of wisdom, and the stories behind them.">
-  <meta name="theme-color" content="#F5D547">
+  <meta name="theme-color" content="#15181C">
   <meta property="og:title" content="The Yellow Pieces">
   <meta property="og:description" content="Highlight the best words in your life.">
   <link rel="manifest" href="manifest.webmanifest">
@@ -13,31 +13,39 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=Instrument+Sans:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="topbar">
-    <a class="brand" href="#/" aria-label="The Yellow Pieces home">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path class="swipe" d="M3 20 L29 14 L29 24 L3 28 Z"/><path class="pg" d="M9 4h14v24H9z"/><path class="ln" d="M12 10h8M12 14h8M12 18h5"/></svg>
-      <span>The <b>Yellow Pieces</b></span>
-    </a>
-    <nav class="nav" aria-label="Main">
+    <a class="brand" href="#/" aria-label="The Yellow Pieces home">The Yellow Pieces <span class="brand-dot" aria-hidden="true"></span></a>
+    <div class="top-actions">
+      <a href="#/search">Search</a>
+      <span id="account"></span>
+      <a href="#/share" class="btn btn-small">+ Share a piece</a>
+    </div>
+  </header>
+  <nav class="cats" aria-label="Sections">
+    <div class="cats-inner">
+      <a href="#/" data-nav="">All</a>
       <a href="#/quotes" data-nav="quotes">Quotes</a>
       <a href="#/stories" data-nav="stories">Stories</a>
       <a href="#/pieces" data-nav="pieces">Pieces</a>
+      <a href="#/pictures" data-nav="pictures">Pictures</a>
       <a href="#/humor" data-nav="humor">Humor</a>
       <a href="#/sketches" data-nav="sketches">Sketches²</a>
-      <a href="#/search" data-nav="search">Search</a>
-      <a href="#/share" class="btn btn-small">+ Share</a>
-      <span id="account"></span>
-    </nav>
-  </header>
+      <a href="#/learn" data-nav="learn">Learn to Write</a>
+    </div>
+  </nav>
   <div id="banner" hidden></div>
   <main id="main" tabindex="-1"></main>
   <footer class="foot">
-    <p><a href="#/about">About</a> · <a href="#/learn">Learn to Write</a> · a sister site to <a href="https://yellowchecklist.com">YellowChecklist</a></p>
+    <div class="foot-inner">
+      <div><div class="foot-brand">The Yellow Pieces <span class="brand-dot" style="display:inline-block" aria-hidden="true"></span></div>
+        <div>Highlight the best words in your life.</div></div>
+      <nav aria-label="More"><a href="#/about">Why yellow?</a><a href="#/learn">Learn to Write</a><a href="https://yellowchecklist.com">Sister site: YellowChecklist</a></nav>
+    </div>
   </footer>
   <script type="module" src="js/app.js"></script>
 </body>

@@ -1,5 +1,6 @@
 // Sample content for demo mode (open the site with ?demo, or before the
-// database is connected). These are made-up examples, not real submissions.
+// database is connected). J. Ray's pieces and photos are his real launch
+// content (excerpts); the other members' posts are made-up examples.
 const daysAgo = (d, h = 0) => new Date(Date.now() - d * 86400000 - h * 3600000).toISOString();
 
 export const demoSeed = {
@@ -7,6 +8,7 @@ export const demoSeed = {
     { id: 'u-sample1', username: 'porch_light', bio: 'Collector of things my grandmother said.' },
     { id: 'u-sample2', username: 'second_draft', bio: 'Teacher. Still learning.' },
     { id: 'u-sample3', username: 'riverbend', bio: '' },
+    { id: 'u-jray', username: 'jpray', bio: 'Writer, teacher, photographer. Keeper of the yellow pieces.' },
   ],
   colors: [
     { slug: 'yellow', name: 'Yellow', meaning: 'The best words and pieces: wisdom that lasted', hex: '#F5D547', sort: 1 },
@@ -27,6 +29,36 @@ export const demoSeed = {
     { slug: 'old-words-young-mouths', name: 'Old words, young mouths', description: 'Wisdom from a child', sort: 7 },
   ],
   pieces: [
+    // ---- J. Ray's launch pieces ----
+    { id: 'jp-q1', author_id: 'u-jray', kind: 'quote', title: '', body: 'Be a tree. Sink your roots deep. Turn towards the light. Build a solid trunk, slowly.',
+      said_by: 'J. Ray', source_slug: 'helpful-words', color: 'yellow', backdrop: 'ink', stuck_count: 12, created_at: daysAgo(0, 5),
+      photo_path: 'be-a-tree.jpg', photo_has_text: true, photo_alt: 'Quote over a lakeside tree: Be a tree. Sink your roots deep. Turn towards the light. Build a solid trunk, slowly.',
+      featured: true, featured_at: daysAgo(0, 1), writeup: '' },
+    { id: 'jp-q2', author_id: 'u-jray', kind: 'quote', title: '', body: 'The path reveals itself to those doing the work, even if they don\'t know where they\'re going.',
+      said_by: 'J. Ray', source_slug: 'helpful-words', color: 'yellow', backdrop: 'ink', stuck_count: 9, created_at: daysAgo(1, 2),
+      photo_path: 'path-reveals.jpg', photo_has_text: true, photo_alt: 'Quote over a wooden footbridge: The path reveals itself to those doing the work, even if they don\'t know where they\'re going.', writeup: '' },
+    { id: 'jp-q3', author_id: 'u-jray', kind: 'quote', title: '', body: 'Live your life like you\'ve got jellybeans in your pocket.',
+      said_by: 'J. Ray', source_slug: 'highlights', color: 'yellow', backdrop: 'ink', stuck_count: 7, created_at: daysAgo(2, 4),
+      photo_path: 'jellybeans.jpg', photo_has_text: true, photo_alt: 'Quote over a flower-covered bicycle: Live your life like you\'ve got jellybeans in your pocket.', writeup: '' },
+    { id: 'jp-p1', author_id: 'u-jray', kind: 'piece', title: 'Grow Up Write Now', body: 'The waves keep coming in life, and it\'s so much better to ride them than to resist them. Writing changes you. It\'s part of your becoming your next self, a wiser version of who you are now.',
+      said_by: '', color: 'yellow', backdrop: 'aged', stuck_count: 6, created_at: daysAgo(0, 9), photo_path: 'golf-green.jpg', photo_alt: 'A golfer on a green under live oaks',
+      featured: true, featured_at: daysAgo(0, 2), writeup: '' },
+    { id: 'jp-s1', author_id: 'u-jray', kind: 'story', title: 'A Dinner to Remember', body: 'In life, like in writing, sometimes we break tradition for a reason.',
+      said_by: '', color: 'green', backdrop: 'aged', stuck_count: 5, created_at: daysAgo(1, 8), photo_path: 'lazarus-sign.jpg', photo_alt: 'A vintage Lazarus parking sign',
+      featured: true, featured_at: daysAgo(0, 3), writeup: '' },
+    { id: 'jp-s2', author_id: 'u-jray', kind: 'story', title: 'I Came from New York', body: '“Have you traveled long?”',
+      said_by: '', color: 'green', backdrop: 'aged', stuck_count: 4, created_at: daysAgo(2, 1), photo_path: 'came-from-new-york.jpg', photo_alt: 'Two men walking down a city street pulling a wagon', writeup: '' },
+    { id: 'jp-s3', author_id: 'u-jray', kind: 'story', title: 'The Greatest Gift', body: 'That little leprechaun strikes again.',
+      said_by: '', color: 'green', backdrop: 'aged', stuck_count: 6, created_at: daysAgo(3, 2), photo_path: 'greatest-gift-door.jpg', photo_alt: 'An old wooden door numbered 6324', writeup: '' },
+    { id: 'jp-p2', author_id: 'u-jray', kind: 'piece', title: 'Illusion of Film', body: 'Me? I remember they were beautiful.',
+      said_by: '', color: 'red', backdrop: 'aged', stuck_count: 3, created_at: daysAgo(3, 6), photo_path: 'gazebo-ceiling.jpg', photo_alt: 'The white ceiling of a gazebo', writeup: '' },
+    { id: 'jp-p3', author_id: 'u-jray', kind: 'piece', title: 'The Traveler', body: 'Kingdom of mercury light',
+      said_by: '', color: 'yellow', backdrop: 'aged', stuck_count: 2, created_at: daysAgo(4), photo_path: 'bougainvillea.jpg', photo_alt: 'Pink bougainvillea in bloom', writeup: '' },
+    { id: 'jp-ph1', author_id: 'u-jray', kind: 'photo', title: 'Pavilion at sunset', body: 'A bike and a bench, and the sun going down over the water.',
+      said_by: '', color: 'yellow', backdrop: 'aged', stuck_count: 8, created_at: daysAgo(1), photo_path: 'pavilion-sunset.jpg', photo_alt: 'A bike under a pavilion at sunset', writeup: '' },
+    { id: 'jp-ph2', author_id: 'u-jray', kind: 'photo', title: 'Downtown Mural', body: 'New Port Richey, Florida · Spring 2017',
+      said_by: '', color: 'yellow', backdrop: 'aged', stuck_count: 3, created_at: daysAgo(5), photo_path: 'downtown-mural.jpg', photo_alt: 'A painted mural of a diner on a downtown wall', writeup: '' },
+    // ---- made-up member examples ----
     { id: 'demo-q1', author_id: 'u-sample1', kind: 'quote', title: '', body: 'Leave the porch light on. Somebody always comes home late.',
       said_by: 'My grandmother', source_slug: 'family-motto', color: 'green', backdrop: 'aged', stuck_count: 41, created_at: daysAgo(0, 3),
       writeup: 'She said it every night, and she meant it more than once. Years later I caught myself saying it to my own kids before I knew what it meant.' },
@@ -49,6 +81,13 @@ export const demoSeed = {
       started_at: 'The dad gave a whole speech about being proud. It felt like a greeting card.', aiming_for: 'Say "I love you, I\'ll miss you" without either of them saying it.',
       said_by: '', color: 'red', backdrop: 'aged', stuck_count: 15, created_at: daysAgo(5), writeup: '' },
   ],
+  pairs: [
+    { id: 1, a_piece: 'jp-ph1', b_piece: 'jp-q1', active: true, created_at: daysAgo(0) },
+    { id: 2, a_piece: 'jp-q2', b_piece: 'jp-p3', active: true, created_at: daysAgo(0) },
+    { id: 3, a_piece: 'jp-q3', b_piece: 'jp-ph2', active: true, created_at: daysAgo(0) },
+    { id: 4, a_piece: 'demo-q1', b_piece: 'jp-p1', active: true, created_at: daysAgo(0) },
+  ],
+  votes: [],
   stuck: [],
   highlights: [
     { user_id: 'u-sample2', piece_id: 'demo-q1', color: 'yellow' },
@@ -57,6 +96,9 @@ export const demoSeed = {
     { user_id: 'u-sample1', piece_id: 'demo-k1', color: 'gray' },
   ],
   comments: [
+    { id: 3, piece_id: 'jp-q1', author_id: 'u-sample1', body: 'My grandfather planted oaks he knew he\'d never sit under. Same idea.', created_at: daysAgo(0, 3) },
+    { id: 4, piece_id: 'jp-q1', author_id: 'u-sample2', body: 'I\'d take "slowly" over "quickly" every time now.', created_at: daysAgo(0, 2) },
+    { id: 5, piece_id: 'jp-s1', author_id: 'u-sample3', body: 'We broke tradition one Thanksgiving and ate at the beach. Best one we ever had.', created_at: daysAgo(1) },
     { id: 1, piece_id: 'demo-q1', author_id: 'u-sample3', body: 'My grandmother kept the porch light on too. Same reason, I think.', created_at: daysAgo(0, 2) },
     { id: 2, piece_id: 'demo-k1', author_id: 'u-sample3', body: 'That last line lands. Maybe cut "Warm ones" so the socks line hangs a beat longer?', created_at: daysAgo(4) },
   ],

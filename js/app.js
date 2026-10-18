@@ -12,6 +12,7 @@ const KINDS = {
   story:  { slug: 'stories',  name: 'Stories',    blurb: 'Words that changed something — short or long.', cta: 'Tell a story' },
   humor:  { slug: 'humor',    name: 'Humor',      blurb: 'The quips, one-liners and family stories that still make you laugh.', cta: 'Share something funny' },
   sketch: { slug: 'sketches', name: 'Sketches²',  blurb: '(sketches of sketches) Short scenes, shared for feedback.', cta: 'Share a sketch' },
+  photo:  { slug: 'pictures', name: 'Pictures',   blurb: 'Favorite photos from the places in between.', cta: 'Add a picture' },
 };
 const kindBySlug = (slug) => Object.keys(KINDS).find((k) => KINDS[k].slug === slug);
 
@@ -26,7 +27,7 @@ const ago = (iso) => {
   const d = Math.round(h / 24);
   return d < 30 ? `${d}d ago` : new Date(iso).toLocaleDateString();
 };
-const params = () => new URLSearchParams(location.hash.split('?')[1] || '');
+const params = () => new URLSearchParams(location.hash.split('#')[1]?.split('?')[1] || '');
 const go = (hash) => { location.hash = hash; };
 const excerpt = (s, n) => (s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s);
 function toast(msg) {
@@ -44,6 +45,23 @@ async function needProfile() {
 const byline = (p) => `<p class="meta">shared by <a href="#/u/${esc(p.author?.username)}">@${esc(p.author?.username)}</a>
   · <a href="#/${KINDS[p.kind].slug}">${esc(KINDS[p.kind].name)}</a> · ${ago(p.created_at)}</p>`;
 
+// ---------- media ----------
+// Pictures with words already in them are shown whole (never cropped), over a soft blur of themselves.
+// Everything else fills its frame, with the muted "Lemon Dusk" tone that blooms to full color on hover.
+function photoHtml(p, { tone = true } = {}) {
+  const src = esc(db.photoUrl(p.photo_path));
+  const alt = esc(p.photo_alt || (p.photo_has_text ? p.body : ''));
+  if (p.photo_has_text) return `<figure class="media fit"><img class="blur" src="${src}" alt="" loading="lazy"><img class="main" src="${src}" alt="${alt}" loading="lazy"></figure>`;
+  return `<figure class="media ${tone ? 'tone' : ''}"><img src="${src}" alt="${alt}" loading="lazy"></figure>`;
+}
+// The visual for a piece inside a fixed frame (pair option, featured tile, card top).
+function visualHtml(p, opts = {}) {
+  if (p.kind === 'quote' && !p.photo_has_text) return quoteCardHtml(p, { photo: db.photoUrl(p.photo_path) });
+  if (p.photo_path) return photoHtml(p, opts);
+  return '';
+}
+const label = (p) => p.title || excerpt(p.body, 60);
+
 // ---------- shared pieces ----------
 function stuckBtn(p, on) {
   return `<button class="stuck ${on ? 'on' : ''}" data-stuck="${esc(p.id)}" aria-pressed="${on}" aria-label="This stuck with me">
@@ -53,15 +71,17 @@ function card(p, stuck) {
   const k = KINDS[p.kind];
   let inner;
   if (p.kind === 'quote') {
-    inner = `<a class="qlink" href="#/p/${esc(p.id)}" aria-label="Open quote">${quoteCardHtml(p)}</a>
+    inner = `<a class="qlink" href="#/p/${esc(p.id)}" aria-label="Open quote">${p.photo_has_text ? `<div class="media-box">${photoHtml(p)}</div>` : quoteCardHtml(p, { photo: db.photoUrl(p.photo_path) })}</a>
       ${p.writeup ? `<p class="writeup-ex">${esc(excerpt(p.writeup, 140))}</p>` : ''}`;
   } else {
-    inner = `<h3><a class="hl hl-${esc(p.color)}" href="#/p/${esc(p.id)}">${esc(p.title || excerpt(p.body, 50))}</a></h3>
-      <p class="body-ex">${esc(excerpt(p.body, 260))}</p>`;
+    inner = `${p.photo_path ? `<a href="#/p/${esc(p.id)}" tabindex="-1" aria-hidden="true"><div class="media-box ${p.kind === 'photo' ? '' : 'wide'}">${photoHtml(p)}</div></a>` : ''}
+      <h3><a href="#/p/${esc(p.id)}">${esc(label(p))}</a></h3>
+      ${p.kind === 'photo' ? (p.body ? `<p class="writeup-ex">${esc(excerpt(p.body, 140))}</p>` : '') : `<p class="body-ex">${esc(excerpt(p.body, 220))}</p>`}`;
   }
   return `<article class="card sheet-${esc(p.kind)}">
     ${inner}
     <footer>${stuckBtn(p, stuck.has(p.id))}
+      <a class="replies" href="#/p/${esc(p.id)}#responses">${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</a>
       <span class="meta">@${esc(p.author?.username)} · ${esc(k.name)}</span>
       <span class="dot dot-${esc(p.color)}" title="${esc(p.color)} highlight"></span></footer>
   </article>`;
@@ -80,32 +100,147 @@ async function colorStrip(active) {
 }
 
 // ---------- views ----------
+let pickTimer = null;
+function stopPickTimer() { if (pickTimer) { clearInterval(pickTimer); pickTimer = null; } }
+
 async function viewHome() {
-  const [quotes, latest] = await Promise.all([db.feed({ kind: 'quote', sort: 'hot', limit: 7 }), db.feed({ sort: 'new', limit: 40 })]);
-  const top = quotes[0];
+  const [pairList, feat, hot, latest] = await Promise.all([
+    db.pairs(), db.featured(3), db.feed({ sort: 'hot', limit: 40 }), db.feed({ sort: 'new', limit: 80 }),
+  ]);
   const of = (kind, n) => latest.filter((p) => p.kind === kind).slice(0, n);
-  main.innerHTML = `
-    <section class="hero">
-      <div>
-        <h1>Highlight the <span class="hl hl-yellow">best words</span> in your life.</h1>
-        <p class="lede">Great lines, words of wisdom, and the stories behind them — the pieces worth passing down.</p>
-        <p class="hero-actions"><a class="btn" href="#/share/quote">Share a quote</a> <a class="btn-ghost" href="#/about">What's a yellow piece?</a></p>
-      </div>
-      ${top ? `<div class="today"><p class="eyebrow">Today's Yellow Piece</p>
-        <a class="qlink" href="#/p/${esc(top.id)}">${quoteCardHtml(top, { large: true })}</a>
-        <p class="meta">shared by @${esc(top.author?.username)}${top.source ? ` · ${esc(top.source.name)}` : ''}</p></div>` : ''}
-    </section>
-    ${await colorStrip()}
-    <section><div class="sec-head"><h2 class="section-title">Quotes</h2><a href="#/quotes">See all</a></div>${await cards(quotes.slice(1, 7))}</section>
-    <section><div class="sec-head"><h2 class="section-title">Stories</h2><a href="#/stories">See all</a></div>${await cards(of('story', 3))}</section>
-    <section><div class="sec-head"><h2 class="section-title">Pieces</h2><a href="#/pieces">See all</a></div>${await cards(of('piece', 3))}</section>
-    <section><div class="sec-head"><h2 class="section-title">Humor</h2><a href="#/humor">See all</a></div>${await cards(of('humor', 3))}</section>
-    <section><div class="sec-head"><h2 class="section-title">Sketches<sup>2</sup></h2><a href="#/sketches">See all</a></div>${await cards(of('sketch', 3))}</section>
-    <section class="learn-teaser">
-      <h2 class="section-title">Learn to Write</h2>
-      <p>Free writing lessons are coming: pieces with worksheets, prompts and further reading — and the writer's own take, unlocked once enough readers weigh in.</p>
-      <a class="btn-ghost" href="#/learn">Take a look</a>
-    </section>`;
+  const featIds = new Set(feat.map((p) => p.id));
+  const trending = hot.filter((p) => !featIds.has(p.id)).slice(0, 4);
+  const row = async (kind, title) => {
+    const list = of(kind, 3);
+    if (!list.length && (kind === 'photo')) return '';
+    const k = KINDS[kind];
+    return `<section aria-labelledby="sec-${kind}"><div class="sec-head"><div><p class="kicker">${esc(k.name)}</p><h2 class="section-title" id="sec-${kind}">${title}</h2></div>
+      <a class="sec-all" href="#/${k.slug}">All ${esc(k.name.toLowerCase())} →</a></div>
+      ${await cards(list, kind === 'photo' ? '' : 'Nothing here yet. Be the first.')}</section>`;
+  };
+  const tile = (p, big) => {
+    const vis = visualHtml(p);
+    const kicker = { quote: 'Quote', piece: 'Piece', story: 'Story', humor: 'Humor', sketch: 'Sketch', photo: 'Picture' }[p.kind];
+    if (!vis) return `<a class="tile text ${big ? 'big' : ''}" href="#/p/${esc(p.id)}"><p class="kicker">${kicker}</p>
+      <p class="lineq">${esc(excerpt(p.body, big ? 260 : 120))}</p><b>${esc(p.title || '')}</b>
+      <span class="acts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} replies</span></span></a>`;
+    const showPanel = !(p.kind === 'quote');
+    return `<a class="tile ${big ? 'big' : ''}" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${vis}
+      ${showPanel ? `<span class="panel"><span class="kicker">${kicker}</span><b>${esc(label(p))}</b>${p.title && p.kind !== 'photo' ? `<q>${esc(excerpt(p.body, big ? 140 : 80))}</q>` : ''}
+        <span class="acts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} replies</span></span></span>` : ''}</a>`;
+  };
+
+  main.innerHTML = `<div class="home">
+    ${pairList.length ? `<section class="pick" aria-labelledby="pick-h">
+      <div class="pick-head"><h1 id="pick-h">Which one speaks to you?</h1>
+        <p class="lede">Two yellow pieces, side by side. Pick one, then say why. Have something to say?</p></div>
+      <div id="pick"></div>
+    </section>` : `<section class="pick"><div class="pick-head"><h1>Highlight the best words in your life.</h1>
+      <p class="lede">Great lines, words of wisdom, and the stories behind them: the pieces worth passing down.</p></div></section>`}
+
+    ${feat.length ? `<section aria-labelledby="feat-h"><div class="sec-head"><div><p class="kicker">Featured</p><h2 class="section-title" id="feat-h">Yellow pieces to start with</h2></div>
+      <p class="sec-blurb">Lines and stories from J. Ray's journals. Read one, then take a side.</p></div>
+      <div class="featured">${tile(feat[0], true)}${feat.length > 1 ? `<div class="featured-side">${feat.slice(1).map((p) => tile(p, false)).join('')}</div>` : ''}</div>
+    </section>` : ''}
+
+    ${trending.length ? `<section aria-labelledby="trend-h"><div class="sec-head"><div><p class="kicker">Trending</p><h2 class="section-title" id="trend-h">Join the conversation</h2></div>
+      <p class="sec-blurb">See what's being said: the pieces drawing the most replies this week.</p></div>
+      <ol class="trend">${trending.map((p, i) => `<li><a href="#/p/${esc(p.id)}">
+        <span class="top"><span>${esc(KINDS[p.kind].name)}</span><span>#${i + 1}</span></span>
+        <span class="line">${p.kind === 'quote' ? `“${esc(excerpt(p.body, 140))}”` : esc(p.title ? p.title + ' — ' + excerpt(p.body, 90) : excerpt(p.body, 140))}</span>
+        <span class="by">@${esc(p.author?.username)}</span>
+        <span class="counts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</span></span></a></li>`).join('')}</ol>
+    </section>` : ''}
+
+    <section><div class="band"><div><h2>Your turn. What's a line you still carry?</h2>
+      <p>A family motto, something a grandparent said, words that came in handy at a surprising time. Share it, and tell us who said it and why it stuck.</p></div>
+      <div class="band-actions"><a class="btn-dark" href="#/share/quote">Share a quote</a><a class="btn-ghost" href="#/share/story">Share a story</a></div></div></section>
+
+    ${await row('quote', 'Lines worth passing down')}
+    ${await row('piece', 'Poems and prose')}
+    ${await row('story', 'Words that changed something')}
+    ${await row('photo', 'Pictures along the way')}
+    ${await row('humor', 'Still makes us laugh')}
+    ${await row('sketch', 'Sketches<sup>2</sup>, scenes in progress')}
+
+    <section><div class="learn-teaser"><div><p class="kicker">Coming soon</p><h2 class="section-title">Learn to Write</h2>
+      <p>Free writing lessons: pieces with worksheets, prompts and further reading, and the writer's own take, unlocked once enough readers weigh in.</p></div>
+      <a class="btn-ghost" href="#/learn">Take a look →</a></div></section>
+  </div>`;
+  if (pairList.length) startPick(pairList);
+}
+
+// ---------- pick one ----------
+function startPick(all) {
+  const voted = db.myVotes();
+  const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+  const queue = [...shuffle(all.filter((x) => !voted[x.id])), ...shuffle(all.filter((x) => voted[x.id]))];
+  let i = 0, paused = false, elapsed = 0;
+  const STEP = 100, LIMIT = 10000;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const box = document.getElementById('pick');
+
+  const optHtml = (side, p) => `<button type="button" class="pair-opt" data-side="${side}" aria-pressed="false"
+      aria-label="Choose ${side.toUpperCase()}: ${esc(p.photo_alt || label(p))}">${visualHtml(p, { tone: false }) || quoteCardHtml(p)}</button>`;
+
+  async function show(pair, results) {
+    stopPickTimer();
+    const mine = db.myVotes()[pair.id];
+    box.innerHTML = `
+      <div class="pair ${mine ? 'voted' : ''}">${optHtml('a', pair.a)}${optHtml('b', pair.b)}<div class="pair-or" aria-hidden="true">or</div></div>
+      ${mine && results ? (() => {
+        const total = results.a + results.b || 1;
+        const pct = (n) => Math.round((n / total) * 100);
+        const one = (side, n) => `<div class="pair-result"><span>${pct(n)}% chose this${mine === side ? ' (you too)' : ''}</span>
+          <span class="bar"><i style="width:${pct(n)}%"></i></span><small>${n} ${n === 1 ? 'vote' : 'votes'}</small></div>`;
+        return `<div class="pair-results">${one('a', results.a)}${one('b', results.b)}</div>`;
+      })() : ''}
+      ${mine ? `<form class="take" id="take"><label>Why that one?
+          <textarea id="take-body" rows="2" maxlength="3000" placeholder="It reminded me of… / I'd pick the other one because…"></textarea></label>
+          <div class="pair-buttons"><button class="btn" type="submit">Post my take</button>
+          <button class="btn-ghost" type="button" data-next>Next pair</button>
+          <a href="#/p/${esc(mine === 'a' ? pair.a.id : pair.b.id)}#responses">What others said →</a></div></form>`
+      : `<div class="pair-controls">${reduce ? '' : '<div class="timer" aria-hidden="true"><i></i></div>'}
+          <p class="pair-hint">Tap the one that speaks to you.${reduce ? '' : ' A new pair comes up in 10 seconds.'}</p>
+          <div class="pair-buttons">${reduce ? '' : `<button class="btn-ghost btn-small" type="button" data-pause aria-pressed="${paused}">${paused ? 'Resume' : 'Pause'}</button>`}
+          ${all.length > 1 ? '<button class="btn-ghost btn-small" type="button" data-next>Next pair</button>' : ''}</div></div>`}`;
+
+    box.querySelectorAll('.pair-opt').forEach((b) => {
+      if (mine) b.setAttribute('aria-pressed', String(b.dataset.side === mine));
+      b.onclick = async () => {
+        if (db.myVotes()[pair.id]) { go('#/p/' + (b.dataset.side === 'a' ? pair.a.id : pair.b.id)); return; }
+        try { const r = await db.vote(pair.id, b.dataset.side); await show(pair, r); document.getElementById('take-body')?.focus(); }
+        catch (err) { toast(err.message); }
+      };
+    });
+    box.querySelectorAll('[data-next]').forEach((b) => { b.onclick = () => next(); });
+    const pb = box.querySelector('[data-pause]');
+    if (pb) pb.onclick = () => { paused = !paused; pb.textContent = paused ? 'Resume' : 'Pause'; pb.setAttribute('aria-pressed', String(paused)); };
+    const take = document.getElementById('take');
+    if (take) take.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = take.querySelector('textarea').value.trim();
+      if (!body) return;
+      if (!(await needProfile())) return;
+      const pieceId = mine === 'a' ? pair.a.id : pair.b.id;
+      try { await db.addComment(pieceId, body); toast('Posted. Thanks for weighing in.'); next(); } catch (err) { toast(err.message); }
+    };
+    if (!mine && !reduce && all.length > 1) {
+      elapsed = 0;
+      const bar = box.querySelector('.timer i');
+      const hold = () => paused || box.matches(':hover') || box.contains(document.activeElement);
+      pickTimer = setInterval(() => {
+        if (!document.body.contains(box)) { stopPickTimer(); return; }
+        if (hold()) return;
+        elapsed += STEP;
+        if (bar) bar.style.width = Math.min(100, (elapsed / LIMIT) * 100) + '%';
+        if (elapsed >= LIMIT) next();
+      }, STEP);
+    }
+  }
+  async function next() { i = (i + 1) % queue.length; const p = queue[i]; await show(p, db.myVotes()[p.id] ? await db.pairResults(p.id) : null); }
+  const first = queue[0];
+  (async () => show(first, db.myVotes()[first.id] ? await db.pairResults(first.id) : null))();
 }
 
 async function viewSection(kind) {
@@ -147,8 +282,12 @@ async function viewPiece(id) {
   const k = KINDS[p.kind];
   document.title = `${p.title || excerpt(p.body, 40)} · The Yellow Pieces`;
   let content;
-  if (p.kind === 'quote') {
-    content = `${quoteCardHtml(p, { large: true })}
+  if (p.kind === 'quote' && p.photo_has_text) {
+    content = `<div class="hero-media"><div class="media-box">${photoHtml(p, { tone: false })}</div></div>
+      ${p.source ? `<p class="from">Filed under <b>${esc(p.source.name)}</b></p>` : ''}
+      ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${esc(p.writeup)}</p>` : ''}`;
+  } else if (p.kind === 'quote') {
+    content = `${quoteCardHtml(p, { large: true, photo: db.photoUrl(p.photo_path) })}
       ${p.source ? `<p class="from">Filed under <b>${esc(p.source.name)}</b></p>` : ''}
       ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${esc(p.writeup)}</p>` : ''}`;
   } else if (p.kind === 'sketch') {
@@ -156,8 +295,12 @@ async function viewPiece(id) {
       ${p.aiming_for ? `<p class="aim"><b>What I'm going for:</b> ${esc(p.aiming_for)}</p>` : ''}
       <h2 class="sub">Where I'm at now</h2><pre class="scene">${esc(p.body)}</pre>
       ${p.started_at ? `<details><summary>Where I started</summary><pre class="scene">${esc(p.started_at)}</pre></details>` : ''}`;
+  } else if (p.kind === 'photo') {
+    content = `<div class="hero-media"><div class="media-box" style="aspect-ratio:auto"><img src="${esc(db.photoUrl(p.photo_path))}" alt="${esc(p.photo_alt)}" style="display:block;width:100%"></div></div>
+      <h1 class="sheet-title">${esc(p.title)}</h1>${p.body ? `<p class="prose">${esc(p.body)}</p>` : ''}`;
   } else {
-    content = `${p.title ? `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>` : ''}
+    content = `${p.photo_path ? `<div class="hero-media"><div class="media-box wide">${photoHtml(p, { tone: false })}</div></div>` : ''}
+      ${p.title ? `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>` : ''}
       <div class="prose ${p.kind === 'piece' ? 'verse' : ''}">${esc(p.body)}</div>`;
   }
   main.innerHTML = `
@@ -167,7 +310,7 @@ async function viewPiece(id) {
       ${byline(p)}
       <div class="actions">
         ${stuckBtn(p, st.has(p.id))}
-        ${p.kind === 'quote' ? `<button class="btn-ghost" data-download>Save as image</button>` : ''}
+        ${p.kind === 'quote' && !p.photo_has_text ? `<button class="btn-ghost" data-download>Save as image</button>` : ''}
         <button class="btn-ghost" data-share>Share</button>
         ${mine && p.status === 'draft' ? `<button class="btn-ghost" data-publish>Publish</button>` : ''}
         ${mine ? `<button class="btn-ghost danger" data-delete>Delete</button>` : `<button class="btn-ghost" data-report>Report</button>`}
@@ -178,15 +321,15 @@ async function viewPiece(id) {
           ${esc(c.name)}${hl.counts[c.slug] ? ` <b>${hl.counts[c.slug]}</b>` : ''}</button>`).join('')}</div>
       </div>
     </article>
-    <section class="comments">
-      <h2 class="section-title">${p.kind === 'sketch' ? 'Notes for the writer' : 'Responses'}</h2>
+    <section class="comments" id="responses">
+      <h2 class="section-title">${p.kind === 'sketch' ? 'Notes for the writer' : 'Join the conversation'}</h2>
       ${comments.length ? `<ul class="comment-list">${comments.map((c) => `
         <li><p class="meta"><a href="#/u/${esc(c.author?.username)}">@${esc(c.author?.username)}</a> · ${ago(c.created_at)}
           ${user && user.id === c.author_id ? `<button class="link danger" data-del-comment="${c.id}">delete</button>` : ''}</p>
           <p>${esc(c.body)}</p></li>`).join('')}</ul>` : `<p class="empty">No responses yet.</p>`}
       ${user ? `<form id="comment-form" class="stack">
           <label for="comment-body">${p.kind === 'sketch' ? 'Leave a note' : 'Add a response'}</label>
-          <textarea id="comment-body" required maxlength="3000" rows="3" placeholder="${p.kind === 'sketch' ? 'What worked, what didn\'t ring true…' : 'Me too — my family always said…'}"></textarea>
+          <textarea id="comment-body" required maxlength="3000" rows="3" placeholder="${p.kind === 'sketch' ? 'What worked, what didn\'t ring true…' : 'Agree? See it differently? Me too — my family always said…'}"></textarea>
           <button class="btn" type="submit">Post</button></form>`
         : `<p><a href="#/signin">Sign in</a> to respond.</p>`}
     </section>`;
@@ -197,7 +340,7 @@ async function viewPiece(id) {
   };
   const dl = main.querySelector('[data-download]');
   if (dl) dl.onclick = async () => {
-    const blob = await quoteCardPng(p);
+    const blob = await quoteCardPng(p, { photo: db.photoUrl(p.photo_path) });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'yellow-piece.png'; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -236,10 +379,11 @@ async function viewPiece(id) {
 
 // ---------- sharing a piece ----------
 async function viewShareChooser() {
+  const admin = await db.isAdmin();
   main.innerHTML = `
     <header class="page-head"><h1>Share a yellow piece</h1><p class="lede">What would you like to pass along?</p></header>
-    <ul class="choices">${Object.entries(KINDS).map(([kind, k]) => `
-      <li><a class="paper choice" href="#/share/${kind}"><b>${kind === 'sketch' ? 'Sketches<sup>2</sup>' : esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
+    <ul class="choices">${Object.entries(KINDS).filter(([kind]) => kind !== 'photo' || admin).map(([kind, k]) => `
+      <li><a class="paper choice" href="${kind === 'photo' ? '#/admin' : '#/share/' + kind}"><b>${kind === 'sketch' ? 'Sketches<sup>2</sup>' : esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
     </ul>`;
 }
 
@@ -252,6 +396,7 @@ function colorPicker(cs, selected = 'yellow') {
 
 async function viewShare(kind) {
   if (!(await needProfile())) return;
+  if (kind === 'photo') { go('#/admin'); return; }
   const k = KINDS[kind];
   const [cs, srcs] = await Promise.all([db.colors(), db.sources()]);
   document.title = `${k.cta} · The Yellow Pieces`;
@@ -481,10 +626,97 @@ async function viewWelcome() {
   };
 }
 
+// ---------- admin: photos, featured, pick-one pairs ----------
+async function viewAdmin() {
+  if (!(await needProfile())) return;
+  if (!(await db.isAdmin())) { main.innerHTML = `<p class="empty">This page is for site admins.</p>`; return; }
+  document.title = 'Site admin · The Yellow Pieces';
+  const recent = await db.feed({ sort: 'new', limit: 80, includePrivate: true });
+  const pairList = await db.pairs({ includeInactive: true });
+  const opt = (p) => `<option value="${esc(p.id)}">${esc(KINDS[p.kind].name)} · ${esc(excerpt(label(p), 60))}</option>`;
+  const thumb = (p) => p.photo_path ? `<img class="thumb" src="${esc(db.photoUrl(p.photo_path))}" alt="">` : `<span class="thumb" aria-hidden="true"></span>`;
+  main.innerHTML = `<div class="admin-grid">
+    <header class="page-head"><h1>Site admin</h1><p class="lede">Add pictures, choose what's featured, and set up the pick-one pairs. Changes show on the site right away.</p></header>
+
+    <form id="photo-form" class="paper stack">
+      <h2 class="section-title">Add a picture</h2>
+      <p class="hint">It's resized for the web (1600 px, WebP) before it's stored. Your full-size original stays on your computer.</p>
+      <label for="ph-file">Photo</label><input id="ph-file" type="file" accept="image/*" required>
+      <div id="photo-preview"></div>
+      <fieldset class="toggles"><legend class="label">Use it for</legend>
+        <label><input type="radio" name="ph-use" value="new" checked> A new picture post (Pictures section)</label>
+        <label><input type="radio" name="ph-use" value="attach"> An existing piece (quote, story, piece…)</label></fieldset>
+      <div id="ph-new" class="stack"><label for="ph-title">Title</label><input id="ph-title" maxlength="140" placeholder="Pavilion at sunset">
+        <label for="ph-caption">Caption <span class="opt">(place, date, a line about it)</span></label><input id="ph-caption" maxlength="400" placeholder="New Port Richey, Florida · Spring 2017"></div>
+      <div id="ph-attach" class="stack" hidden><label for="ph-piece">Piece</label><select id="ph-piece">${recent.filter((p) => p.kind !== 'photo').map(opt).join('')}</select></div>
+      <label for="ph-alt">Describe the picture <span class="opt">(for people using screen readers)</span></label><input id="ph-alt" maxlength="300" placeholder="A bike under a pavilion at sunset">
+      <label class="check"><input type="checkbox" id="ph-text"> The words are already in the picture (a quote post). It'll always be shown whole, never cropped.</label>
+      <label class="check"><input type="checkbox" id="ph-feat"> Feature it on the homepage</label>
+      <div class="actions"><button class="btn" type="submit">Upload</button></div><div id="ph-msg" aria-live="polite"></div>
+    </form>
+
+    <section class="paper"><h2 class="section-title">Featured</h2><p class="hint">The newest three featured pieces show on the homepage.</p>
+      <ul class="admin-list">${recent.filter((p) => p.status === 'published').slice(0, 40).map((p) => `<li>${thumb(p)}
+        <span class="what">${esc(excerpt(label(p), 80))}<small>${esc(KINDS[p.kind].name)} · @${esc(p.author?.username)}</small></span>
+        <button class="btn-ghost btn-small" type="button" data-feature="${esc(p.id)}" aria-pressed="${!!p.featured}">${p.featured ? '★ Featured' : 'Feature'}</button></li>`).join('')}</ul></section>
+
+    <section class="paper"><h2 class="section-title">Pick-one pairs</h2>
+      <p class="hint">Pairs work best as a picture against a quote, or two quotes that pull different ways.</p>
+      <form id="pair-form" class="row"><div class="stack"><label for="pa">Left</label><select id="pa">${recent.map(opt).join('')}</select></div>
+        <div class="stack"><label for="pb">Right</label><select id="pb">${recent.map(opt).join('')}</select></div>
+        <div class="actions"><button class="btn" type="submit">Add pair</button></div></form>
+      <ul class="admin-list">${pairList.map((x) => `<li>${thumb(x.a)}${thumb(x.b)}
+        <span class="what">${esc(excerpt(label(x.a), 40))} <b>or</b> ${esc(excerpt(label(x.b), 40))}<small>${x.active ? 'Showing' : 'Hidden'}</small></span>
+        <button class="btn-ghost btn-small" type="button" data-pair-toggle="${x.id}" data-on="${x.active}">${x.active ? 'Hide' : 'Show'}</button>
+        <button class="link danger" type="button" data-pair-del="${x.id}">Remove</button></li>`).join('') || '<li class="empty">No pairs yet.</li>'}</ul></section>
+  </div>`;
+
+  const f = document.getElementById('photo-form');
+  const file = f.querySelector('#ph-file');
+  file.onchange = () => { const x = file.files[0]; document.getElementById('photo-preview').innerHTML = x ? `<img src="${URL.createObjectURL(x)}" alt="">` : ''; };
+  f.querySelectorAll('input[name=ph-use]').forEach((r) => { r.onchange = () => {
+    const attach = f.querySelector('input[name=ph-use]:checked').value === 'attach';
+    document.getElementById('ph-new').hidden = attach; document.getElementById('ph-attach').hidden = !attach; }; });
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('ph-msg');
+    const x = file.files[0];
+    if (!x) return;
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true; msg.textContent = 'Resizing and uploading…';
+    try {
+      const path = await db.uploadPhoto(x);
+      const fields = { photo_path: path, photo_has_text: f.querySelector('#ph-text').checked, photo_alt: f.querySelector('#ph-alt').value.trim(),
+        featured: f.querySelector('#ph-feat').checked || undefined };
+      let id;
+      if (f.querySelector('input[name=ph-use]:checked').value === 'attach') id = f.querySelector('#ph-piece').value;
+      else id = await db.createPiece({ kind: 'photo', title: f.querySelector('#ph-title').value.trim(), body: f.querySelector('#ph-caption').value.trim() || f.querySelector('#ph-title').value.trim() || 'Picture',
+        color: 'yellow', visibility: 'public', status: 'published' });
+      await db.setPieceMedia(id, fields);
+      toast('Picture added'); route();
+    } catch (err) { msg.innerHTML = errorBox(err); btn.disabled = false; }
+  };
+  main.querySelectorAll('[data-feature]').forEach((b) => { b.onclick = async () => {
+    const on = b.getAttribute('aria-pressed') !== 'true'; b.disabled = true;
+    try { await db.setPieceMedia(b.dataset.feature, { featured: on }); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '★ Featured' : 'Feature'; }
+    catch (err) { toast(err.message); }
+    b.disabled = false; }; });
+  document.getElementById('pair-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const a = document.getElementById('pa').value, b = document.getElementById('pb').value;
+    if (a === b) { toast('Pick two different pieces.'); return; }
+    try { await db.addPair(a, b); toast('Pair added'); route(); } catch (err) { toast(err.message); }
+  };
+  main.querySelectorAll('[data-pair-toggle]').forEach((b) => { b.onclick = async () => {
+    try { await db.setPairActive(Number(b.dataset.pairToggle), b.dataset.on !== 'true'); route(); } catch (err) { toast(err.message); } }; });
+  main.querySelectorAll('[data-pair-del]').forEach((b) => { b.onclick = async () => {
+    if (!confirm('Remove this pair and its votes?')) return;
+    try { await db.removePair(Number(b.dataset.pairDel)); route(); } catch (err) { toast(err.message); } }; });
+}
+
 // ---------- account + routing ----------
 async function renderAccount() {
   const [user, prof] = [await db.currentUser(), await db.myProfile()];
-  if (prof) accountEl.innerHTML = `<a href="#/u/${esc(prof.username)}">@${esc(prof.username)}</a> <button class="link" id="signout">Sign out</button>`;
+  if (prof) accountEl.innerHTML = `${(await db.isAdmin()) ? '<a href="#/admin">Admin</a>' : ''}<a href="#/u/${esc(prof.username)}">@${esc(prof.username)}</a> <button class="link" id="signout">Sign out</button>`;
   else if (user) accountEl.innerHTML = `<a href="#/welcome">Finish signing up</a>`;
   else accountEl.innerHTML = `<a href="#/signin">Sign in</a>`;
   const so = document.getElementById('signout');
@@ -507,10 +739,12 @@ document.addEventListener('click', async (e) => {
 });
 
 async function route() {
-  const path = (location.hash.slice(1) || '/').split('?')[0];
+  const [hashPath, anchor] = location.hash.slice(1).split('#');
+  const path = (hashPath || '/').split('?')[0];
   const parts = path.split('/').filter(Boolean);
   document.title = 'The Yellow Pieces';
-  document.querySelectorAll('.nav [data-nav]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.nav === parts[0]));
+  stopPickTimer();
+  document.querySelectorAll('.cats [data-nav]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.nav === (parts[0] || '')));
   main.setAttribute('aria-busy', 'true');
   try {
     if (!parts.length) await viewHome();
@@ -523,6 +757,7 @@ async function route() {
     else if (parts[0] === 'learn') viewLearn();
     else if (parts[0] === 'u' && parts[1]) await viewProfile(decodeURIComponent(parts[1]));
     else if (parts[0] === 'search') await viewSearch();
+    else if (parts[0] === 'admin') await viewAdmin();
     else if (parts[0] === 'signin') await viewSignIn();
     else if (parts[0] === 'welcome') await viewWelcome();
     else main.innerHTML = `<p class="empty">Page not found. <a href="#/">Go home</a></p>`;
@@ -531,6 +766,7 @@ async function route() {
     main.innerHTML = errorBox(err);
   }
   main.removeAttribute('aria-busy');
+  if (anchor) document.getElementById(anchor)?.scrollIntoView();
 }
 
 (async function start() {

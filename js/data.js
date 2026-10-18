@@ -29,6 +29,7 @@ export const onAuth = (fn) => listeners.add(fn);
 
 const PIECE_SELECT =
   'id,kind,title,body,said_by,source_slug,writeup,started_at,aiming_for,color,backdrop,visibility,status,stuck_count,created_at,author_id,' +
+  'photo_path,photo_has_text,photo_alt,featured,featured_at,comment_count,' +
   'author:profiles!pieces_author_id_fkey(username),source:sources!pieces_source_slug_fkey(name,slug)';
 
 function check({ data, error }) {
@@ -103,9 +104,10 @@ export async function sources() {
 }
 
 // ---------- Pieces ----------
+// Trending weighs conversation (replies) a little more than "stuck with me".
 function hotScore(p) {
   const hours = (Date.now() - new Date(p.created_at).getTime()) / 3600000;
-  return (p.stuck_count + 1) / Math.pow(hours + 2, 1.4);
+  return (p.stuck_count + 2 * (p.comment_count || 0) + 1) / Math.pow(hours + 2, 1.2);
 }
 // color: pieces the author marked with that color OR that readers highlighted with it.
 export async function feed({ kind, color, authorId, sort = 'new', q, limit = 30, includePrivate = false } = {}) {
@@ -237,15 +239,141 @@ export async function report({ pieceId = null, commentId = null, reason = '' }) 
   check(await sb.from('reports').insert({ piece_id: pieceId, comment_id: commentId, reason, reporter_id: u.id }));
 }
 
+// ---------- Photos ----------
+// Photos live in the Supabase "photos" bucket (public to view, admins upload).
+export function photoUrl(path) {
+  if (!path) return '';
+  if (/^(blob:|data:|https?:)/.test(path)) return path;
+  if (mode === 'demo') return 'demo/photos/' + path;
+  return `${SUPABASE_URL}/storage/v1/object/public/photos/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+// Shrinks a photo to web size (1600px on the long side, WebP) before it's stored.
+// The full-size original stays on your computer.
+export async function resizePhoto(file, maxEdge = 1600) {
+  const bmp = await createImageBitmap(file);
+  const s = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/webp', 0.82));
+  return blob || new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+}
+export async function uploadPhoto(file) {
+  const blob = await resizePhoto(file);
+  const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const d = new Date();
+  const path = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${crypto.randomUUID()}.${ext}`;
+  if (mode === 'demo') return URL.createObjectURL(blob);
+  check(await sb.storage.from('photos').upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false }));
+  return path;
+}
+
+// ---------- Admin ----------
+export async function isAdmin() {
+  const u = await currentUser();
+  if (!u) return false;
+  if (mode === 'demo') return true; // so the preview can show the admin page
+  const rows = check(await sb.from('admins').select('user_id').eq('user_id', u.id));
+  return rows.length > 0;
+}
+// fields: { photo_path, photo_has_text, photo_alt, featured } (leave any out to keep it as is)
+export async function setPieceMedia(id, fields) {
+  if (mode === 'demo') {
+    const p = demo.pieces.find((x) => x.id === id);
+    if (fields.featured === true && !p.featured) p.featured_at = new Date().toISOString();
+    Object.entries(fields).forEach(([k, v]) => { if (v !== undefined && v !== null) p[k] = v; });
+    return;
+  }
+  check(await sb.rpc('admin_set_piece_media', {
+    p_id: id, p_photo_path: fields.photo_path ?? null, p_photo_has_text: fields.photo_has_text ?? null,
+    p_photo_alt: fields.photo_alt ?? null, p_featured: fields.featured ?? null,
+  }));
+}
+
+// ---------- Featured ----------
+export async function featured(limit = 3) {
+  let rows;
+  if (mode === 'demo') rows = demo.pieces.filter((p) => p.featured && p.status !== 'draft').map(demo.hydrate);
+  else rows = check(await sb.from('pieces').select(PIECE_SELECT).eq('featured', true).eq('status', 'published').order('featured_at', { ascending: false }).limit(limit));
+  rows.sort((a, b) => new Date(b.featured_at || 0) - new Date(a.featured_at || 0));
+  return rows.slice(0, limit);
+}
+
+// ---------- Pick-one pairs ----------
+const VOTE_KEY = 'yp-voter';
+const VOTES_KEY = 'yp-votes';
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } return null; }
+function voterKey() {
+  let k = store(VOTE_KEY);
+  if (!k) { k = crypto.randomUUID().replace(/-/g, ''); store(VOTE_KEY, k); }
+  return k;
+}
+export function myVotes() { try { return JSON.parse(store(VOTES_KEY) || '{}'); } catch { return {}; } }
+
+async function piecesByIds(ids) {
+  if (!ids.length) return [];
+  if (mode === 'demo') return demo.pieces.filter((p) => ids.includes(p.id)).map(demo.hydrate);
+  return check(await sb.from('pieces').select(PIECE_SELECT).in('id', ids));
+}
+export async function pairs({ includeInactive = false } = {}) {
+  let rows;
+  if (mode === 'demo') rows = demo.pairs.filter((x) => includeInactive || x.active);
+  else {
+    let q = sb.from('pairs').select('id,a_piece,b_piece,active,created_at').order('created_at', { ascending: false });
+    if (!includeInactive) q = q.eq('active', true);
+    rows = check(await q);
+  }
+  const ps = await piecesByIds([...new Set(rows.flatMap((r) => [r.a_piece, r.b_piece]))]);
+  const byId = Object.fromEntries(ps.map((p) => [p.id, p]));
+  return rows.filter((r) => byId[r.a_piece] && byId[r.b_piece]).map((r) => ({ ...r, a: byId[r.a_piece], b: byId[r.b_piece] }));
+}
+export async function vote(pairId, choice) {
+  const votes = myVotes();
+  if (!votes[pairId]) {
+    if (mode === 'demo') demo.votes.push({ pair_id: pairId, choice });
+    else {
+      const res = await sb.from('pair_votes').insert({ pair_id: pairId, voter_key: voterKey(), choice });
+      if (res.error && res.error.code !== '23505') throw new Error(res.error.message);
+    }
+    votes[pairId] = choice;
+    store(VOTES_KEY, JSON.stringify(votes));
+  }
+  return pairResults(pairId);
+}
+export async function pairResults(pairId) {
+  if (mode === 'demo') {
+    const v = demo.votes.filter((x) => x.pair_id === pairId);
+    return { a: v.filter((x) => x.choice === 'a').length, b: v.filter((x) => x.choice === 'b').length };
+  }
+  const rows = check(await sb.rpc('pair_results', { p_pair: pairId }));
+  const r = rows[0] || { a_votes: 0, b_votes: 0 };
+  return { a: Number(r.a_votes), b: Number(r.b_votes) };
+}
+export async function addPair(aId, bId) {
+  if (mode === 'demo') { demo.pairs.unshift({ id: Date.now(), a_piece: aId, b_piece: bId, active: true, created_at: new Date().toISOString() }); return; }
+  check(await sb.from('pairs').insert({ a_piece: aId, b_piece: bId }));
+}
+export async function setPairActive(id, active) {
+  if (mode === 'demo') { demo.pairs.find((x) => x.id === id).active = active; return; }
+  check(await sb.from('pairs').update({ active }).eq('id', id));
+}
+export async function removePair(id) {
+  if (mode === 'demo') { demo.pairs = demo.pairs.filter((x) => x.id !== id); return; }
+  check(await sb.from('pairs').delete().eq('id', id));
+}
+
 // ---------- Demo store ----------
 const demo = {
-  user: null, profiles: [], colors: [], sources: [], pieces: [], stuck: [], highlights: [], comments: [],
+  user: null, profiles: [], colors: [], sources: [], pieces: [], stuck: [], highlights: [], comments: [], pairs: [], votes: [],
   load() { Object.assign(this, structuredClone(demoSeed)); this.pieces.forEach((p) => { p.status ||= 'published'; p.visibility ||= 'public'; p.started_at ||= ''; p.aiming_for ||= ''; }); },
   signIn(email) { this.user = { id: 'demo-user-' + email.toLowerCase(), email }; },
   hydrate(p) {
     const src = demo.sources.find((s) => s.slug === p.source_slug);
     return {
+      photo_path: '', photo_has_text: false, photo_alt: '', featured: false,
       ...p,
+      comment_count: demo.comments.filter((c) => c.piece_id === p.id).length,
       author: { username: (demo.profiles.find((x) => x.id === p.author_id) || {}).username || 'someone' },
       source: src ? { name: src.name, slug: src.slug } : null,
     };
