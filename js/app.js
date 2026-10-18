@@ -133,7 +133,7 @@ async function viewHome() {
   main.innerHTML = `<div class="home">
     ${pairList.length ? `<section class="pick" aria-labelledby="pick-h">
       <div class="pick-head"><h1 id="pick-h">Which one speaks to you?</h1>
-        <p class="lede">Two yellow pieces, side by side. Pick one, then say why. Have something to say?</p></div>
+        <p class="lede">Two yellow pieces, side by side. Pick one, then say why. What comes to mind?</p></div>
       <div id="pick"></div>
     </section>` : `<section class="pick"><div class="pick-head"><h1>Highlight the best words in your life.</h1>
       <p class="lede">Great lines, words of wisdom, and the stories behind them: the pieces worth passing down.</p></div></section>`}
