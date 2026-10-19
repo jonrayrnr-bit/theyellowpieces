@@ -20,6 +20,7 @@ phone like an app (a PWA).
 | `js/demo.js` | Made-up sample pieces for demo mode |
 | `supabase/schema.sql` | Database setup: tables, security rules, highlighter colors, quote sources |
 | `supabase/update-2026-10-18-launch.sql` | Launch update: photo storage, featured pieces, pick-one pairs and votes, reply counts, admins |
+| `supabase/update-2026-10-18-admin-edit.sql` | Lets admins edit any piece's words from the site |
 | `demo/photos/` | J. Ray's starter photos, used only in demo mode |
 | `manifest.webmanifest`, `sw.js`, `icons/` | What lets it install as a phone app |
 
@@ -40,6 +41,10 @@ Photos are stored in the Supabase project's `photos` bucket (free plan: 1 GB, ab
 month). The admin page (`#/admin`) resizes each photo to 1600 px WebP before uploading; originals stay
 on your computer. Quote posts with the words already in the picture are marked so they're always shown
 whole, never cropped.
+
+Admins get an **Edit** button on every piece (and in the admin list): change the title, words,
+who said it, color and featured, or replace/remove the photo. The downsizer shows the original
+and stored size (1200, 1600 or 2048 px) before saving, and keeps the original when it's already small.
 
 ## Sections
 

@@ -277,7 +277,7 @@ async function viewColor(slug) {
 async function viewPiece(id) {
   const p = await db.getPiece(id);
   if (!p) { main.innerHTML = `<p class="empty">That piece isn't here. It may be private or deleted.</p>`; return; }
-  const [st, user, comments, hl, cs] = await Promise.all([db.myStuck([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors()]);
+  const [st, user, comments, hl, cs, admin] = await Promise.all([db.myStuck([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors(), db.isAdmin()]);
   const mine = user && user.id === p.author_id;
   const k = KINDS[p.kind];
   document.title = `${p.title || excerpt(p.body, 40)} · The Yellow Pieces`;
@@ -313,6 +313,7 @@ async function viewPiece(id) {
         ${p.kind === 'quote' && !p.photo_has_text ? `<button class="btn-ghost" data-download>Save as image</button>` : ''}
         <button class="btn-ghost" data-share>Share</button>
         ${mine && p.status === 'draft' ? `<button class="btn-ghost" data-publish>Publish</button>` : ''}
+        ${admin ? `<a class="btn" href="#/edit/${esc(p.id)}">Edit</a>` : ''}
         ${mine ? `<button class="btn-ghost danger" data-delete>Delete</button>` : `<button class="btn-ghost" data-report>Report</button>`}
       </div>
       <div class="highlighter">
@@ -642,6 +643,7 @@ async function viewAdmin() {
       <h2 class="section-title">Add a picture</h2>
       <p class="hint">It's resized for the web (1600 px, WebP) before it's stored. Your full-size original stays on your computer.</p>
       <label for="ph-file">Photo</label><input id="ph-file" type="file" accept="image/*" required>
+      <label for="ph-size">Downsize to</label><select id="ph-size"><option value="1200">1200 px (smallest)</option><option value="1600" selected>1600 px (recommended)</option><option value="2048">2048 px (sharpest)</option></select>
       <div id="photo-preview"></div>
       <fieldset class="toggles"><legend class="label">Use it for</legend>
         <label><input type="radio" name="ph-use" value="new" checked> A new picture post (Pictures section)</label>
@@ -655,9 +657,10 @@ async function viewAdmin() {
       <div class="actions"><button class="btn" type="submit">Upload</button></div><div id="ph-msg" aria-live="polite"></div>
     </form>
 
-    <section class="paper"><h2 class="section-title">Featured</h2><p class="hint">The newest three featured pieces show on the homepage.</p>
+    <section class="paper"><h2 class="section-title">Your pieces</h2><p class="hint">Edit the words or photo of any piece, and choose what's featured. The newest three featured pieces show on the homepage.</p>
       <ul class="admin-list">${recent.filter((p) => p.status === 'published').slice(0, 40).map((p) => `<li>${thumb(p)}
         <span class="what">${esc(excerpt(label(p), 80))}<small>${esc(KINDS[p.kind].name)} · @${esc(p.author?.username)}</small></span>
+        <a class="btn-ghost btn-small" href="#/edit/${esc(p.id)}">Edit</a>
         <button class="btn-ghost btn-small" type="button" data-feature="${esc(p.id)}" aria-pressed="${!!p.featured}">${p.featured ? '★ Featured' : 'Feature'}</button></li>`).join('')}</ul></section>
 
     <section class="paper"><h2 class="section-title">Pick-one pairs</h2>
@@ -684,7 +687,7 @@ async function viewAdmin() {
     if (!x) return;
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true; msg.textContent = 'Resizing and uploading…';
     try {
-      const path = await db.uploadPhoto(x);
+      const path = await db.uploadPhoto(x, Number(f.querySelector('#ph-size')?.value || 1600));
       const fields = { photo_path: path, photo_has_text: f.querySelector('#ph-text').checked, photo_alt: f.querySelector('#ph-alt').value.trim(),
         featured: f.querySelector('#ph-feat').checked || undefined };
       let id;
@@ -711,6 +714,88 @@ async function viewAdmin() {
   main.querySelectorAll('[data-pair-del]').forEach((b) => { b.onclick = async () => {
     if (!confirm('Remove this pair and its votes?')) return;
     try { await db.removePair(Number(b.dataset.pairDel)); route(); } catch (err) { toast(err.message); } }; });
+}
+
+// ---------- admin: edit a piece (words, color, featured, photo with downsizer) ----------
+const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB');
+async function viewEdit(id) {
+  if (!(await needProfile())) return;
+  if (!(await db.isAdmin())) { main.innerHTML = `<p class="empty">Only site admins can edit pieces.</p>`; return; }
+  const p = await db.getPiece(id);
+  if (!p) { main.innerHTML = `<p class="empty">That piece isn't here.</p>`; return; }
+  const [cs, srcs] = await Promise.all([db.colors(), db.sources()]);
+  document.title = `Edit · The Yellow Pieces`;
+  const k = KINDS[p.kind];
+  const field = (id, lbl, val, { area = false, rows = 3, max = 140, hint = '' } = {}) => `<label for="${id}">${lbl}${hint ? ` <span class="opt">${hint}</span>` : ''}</label>
+    ${area ? `<textarea id="${id}" rows="${rows}" maxlength="${max}">${esc(val)}</textarea>` : `<input id="${id}" maxlength="${max}" value="${esc(val)}">`}`;
+  main.innerHTML = `<form id="edit" class="sheet paper stack">
+    <p class="kicker">${esc(k.name)} · @${esc(p.author?.username)}</p>
+    <h1 class="sheet-title">Edit</h1>
+    ${p.kind !== 'quote' ? field('e-title', 'Title', p.title) : ''}
+    ${field('e-body', p.kind === 'quote' ? 'The line' : p.kind === 'photo' ? 'Caption' : p.kind === 'sketch' ? 'Where I\'m at now' : 'The words', p.body, { area: true, rows: p.kind === 'quote' || p.kind === 'photo' ? 3 : 14, max: p.kind === 'quote' ? 400 : 20000 })}
+    ${p.kind === 'quote' ? `<div class="row"><div class="stack">${field('e-said', 'Who said it', p.said_by)}</div>
+      <div class="stack"><label for="e-src">Where it came from</label><select id="e-src">${srcs.map((x) => `<option value="${esc(x.slug)}" ${x.slug === p.source_slug ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div></div>
+      ${field('e-writeup', 'Why it stuck', p.writeup, { area: true, rows: 5, max: 3000 })}` : ''}
+    ${p.kind === 'sketch' ? `${field('e-aim', 'What I\'m trying to do with this scene', p.aiming_for, { area: true, rows: 2, max: 1500 })}
+      ${field('e-start', 'Where I started', p.started_at, { area: true, rows: 5, max: 3000 })}` : ''}
+    ${colorPicker(cs, p.color)}
+    <label class="check"><input type="checkbox" id="e-feat" ${p.featured ? 'checked' : ''}> Feature it on the homepage</label>
+
+    <fieldset class="stack" style="border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-top:14px">
+      <legend class="label">Photo</legend>
+      <div id="e-photo-now">${p.photo_path ? `<img src="${esc(db.photoUrl(p.photo_path))}" alt="" style="max-width:260px;border-radius:12px;display:block">` : '<p class="empty">No photo yet.</p>'}</div>
+      <label for="e-file">${p.photo_path ? 'Replace with a new photo' : 'Add a photo'}</label>
+      <input id="e-file" type="file" accept="image/*">
+      <label for="e-size">Downsize to</label>
+      <select id="e-size"><option value="1200">1200 px (smallest)</option><option value="1600" selected>1600 px (recommended)</option><option value="2048">2048 px (sharpest)</option></select>
+      <p class="hint" id="e-size-info" aria-live="polite">Pick a photo to see how much the downsizer saves.</p>
+      ${field('e-alt', 'Describe the picture', p.photo_alt, { max: 300, hint: '(for people using screen readers)' })}
+      <label class="check"><input type="checkbox" id="e-text" ${p.photo_has_text ? 'checked' : ''}> The words are already in the picture (always shown whole, never cropped)</label>
+      ${p.photo_path ? `<label class="check"><input type="checkbox" id="e-remove"> Remove the photo from this piece</label>` : ''}
+    </fieldset>
+
+    <div class="actions"><button class="btn" type="submit">Save changes</button><a class="btn-ghost" href="#/p/${esc(p.id)}">Cancel</a></div>
+    <div id="e-msg" aria-live="polite"></div>
+  </form>`;
+
+  const f = document.getElementById('edit');
+  const val = (id) => (f.querySelector('#' + id)?.value ?? null);
+  let prepared = null; // { blob, width, height, origWidth, origHeight }
+  const prep = async () => {
+    const file = f.querySelector('#e-file').files[0];
+    const info = document.getElementById('e-size-info');
+    if (!file) { prepared = null; info.textContent = 'Pick a photo to see how much the downsizer saves.'; return; }
+    info.textContent = 'Downsizing…';
+    try {
+      prepared = await db.resizePhoto(file, Number(val('e-size')));
+      info.textContent = `Original ${prepared.origWidth}×${prepared.origHeight}, ${kb(file.size)} → stored ${prepared.width}×${prepared.height}, ${kb(prepared.blob.size)}.`;
+      document.getElementById('e-photo-now').innerHTML = `<img src="${URL.createObjectURL(prepared.blob)}" alt="" style="max-width:260px;border-radius:12px;display:block"><p class="hint">New photo (not saved yet)</p>`;
+    } catch (err) { prepared = null; info.textContent = 'That file couldn\'t be read as a picture. Try a JPG, PNG or WebP.'; }
+  };
+  f.querySelector('#e-file').addEventListener('change', prep);
+  f.querySelector('#e-size').addEventListener('change', prep);
+
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('e-msg');
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true; msg.textContent = 'Saving…';
+    try {
+      const fields = { body: (val('e-body') || '').trim(), color: f.querySelector('input[name=color]:checked').value };
+      if (!fields.body) throw new Error('The words can\'t be empty.');
+      if (f.querySelector('#e-title')) fields.title = val('e-title').trim();
+      if (p.kind === 'quote') Object.assign(fields, { said_by: val('e-said').trim(), source_slug: val('e-src'), writeup: val('e-writeup').trim() });
+      if (p.kind === 'sketch') Object.assign(fields, { aiming_for: val('e-aim').trim(), started_at: val('e-start').trim() });
+      await db.updatePiece(p.id, fields);
+
+      const media = { featured: f.querySelector('#e-feat').checked, photo_alt: val('e-alt').trim(), photo_has_text: f.querySelector('#e-text').checked };
+      const removing = f.querySelector('#e-remove')?.checked;
+      if (prepared) { msg.textContent = 'Uploading the photo…'; media.photo_path = await db.uploadBlob(prepared.blob); }
+      else if (removing) media.photo_path = '';
+      await db.setPieceMedia(p.id, media);
+      if ((prepared || removing) && p.photo_path) await db.removePhotoFile(p.photo_path).catch(() => {});
+      toast('Saved'); go('#/p/' + p.id);
+    } catch (err) { msg.innerHTML = errorBox(err); btn.disabled = false; }
+  };
 }
 
 // ---------- account + routing ----------
@@ -758,6 +843,7 @@ async function route() {
     else if (parts[0] === 'u' && parts[1]) await viewProfile(decodeURIComponent(parts[1]));
     else if (parts[0] === 'search') await viewSearch();
     else if (parts[0] === 'admin') await viewAdmin();
+    else if (parts[0] === 'edit' && parts[1]) await viewEdit(decodeURIComponent(parts[1]));
     else if (parts[0] === 'signin') await viewSignIn();
     else if (parts[0] === 'welcome') await viewWelcome();
     else main.innerHTML = `<p class="empty">Page not found. <a href="#/">Go home</a></p>`;

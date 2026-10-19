@@ -167,6 +167,15 @@ export async function createPiece(piece) {
   }
   return check(await sb.from('pieces').insert({ ...piece, author_id: u.id }).select('id').single()).id;
 }
+// Admin edit of a piece's words and settings (photo and featured go through setPieceMedia).
+export async function updatePiece(id, fields) {
+  if (mode === 'demo') { Object.assign(demo.pieces.find((p) => p.id === id), fields); return; }
+  check(await sb.rpc('admin_update_piece', {
+    p_id: id, p_title: fields.title ?? null, p_body: fields.body ?? null, p_said_by: fields.said_by ?? null,
+    p_writeup: fields.writeup ?? null, p_aiming_for: fields.aiming_for ?? null, p_started_at: fields.started_at ?? null,
+    p_color: fields.color ?? null, p_source_slug: fields.source_slug ?? null,
+  }));
+}
 export async function publishDraft(id) {
   if (mode === 'demo') { demo.pieces.find((p) => p.id === id).status = 'published'; return; }
   check(await sb.from('pieces').update({ status: 'published', updated_at: new Date().toISOString() }).eq('id', id));
@@ -248,25 +257,37 @@ export function photoUrl(path) {
   return `${SUPABASE_URL}/storage/v1/object/public/photos/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-// Shrinks a photo to web size (1600px on the long side, WebP) before it's stored.
+// The downsizer: shrinks a photo to web size (WebP) before it's stored.
 // The full-size original stays on your computer.
-export async function resizePhoto(file, maxEdge = 1600) {
+// Returns { blob, width, height, origWidth, origHeight }.
+export async function resizePhoto(file, maxEdge = 1600, quality = 0.82) {
   const bmp = await createImageBitmap(file);
   const s = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
   c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  const blob = await new Promise((r) => c.toBlob(r, 'image/webp', 0.82));
-  return blob || new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+  let blob = await new Promise((r) => c.toBlob(r, 'image/webp', quality));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+  // Already small enough? Keep the original rather than a bigger re-encode.
+  if (s === 1 && /^image\/(jpeg|webp)$/.test(file.type) && file.size <= blob.size) blob = file;
+  return { blob, width: c.width, height: c.height, origWidth: bmp.width, origHeight: bmp.height };
 }
-export async function uploadPhoto(file) {
-  const blob = await resizePhoto(file);
+// Stores an already-downsized photo; returns its path in the photos bucket.
+export async function uploadBlob(blob) {
   const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
   const d = new Date();
   const path = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${crypto.randomUUID()}.${ext}`;
   if (mode === 'demo') return URL.createObjectURL(blob);
   check(await sb.storage.from('photos').upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false }));
   return path;
+}
+export async function uploadPhoto(file, maxEdge = 1600) {
+  return uploadBlob((await resizePhoto(file, maxEdge)).blob);
+}
+// Removes a photo file from storage (only files this site stored, not outside links).
+export async function removePhotoFile(path) {
+  if (!path || mode === 'demo' || /^(blob:|data:|https?:)/.test(path)) return;
+  await sb.storage.from('photos').remove([path]);
 }
 
 // ---------- Admin ----------
