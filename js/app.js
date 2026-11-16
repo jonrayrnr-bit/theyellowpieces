@@ -657,6 +657,13 @@ async function viewAdmin() {
       <div class="actions"><button class="btn" type="submit">Upload</button></div><div id="ph-msg" aria-live="polite"></div>
     </form>
 
+    <section class="paper stack" id="desk-import">
+      <h2 class="section-title">Import from Writing Desk</h2>
+      <p class="hint">Choose the file the Writing Desk exported ("Export ready"). You'll see each piece first, then post the ones you tick.</p>
+      <label for="di-file">Export file</label><input id="di-file" type="file" accept=".json,application/json">
+      <div id="di-list"></div><div id="di-msg" aria-live="polite"></div>
+    </section>
+
     <section class="paper"><h2 class="section-title">Your pieces</h2><p class="hint">Edit the words or photo of any piece, and choose what's featured. The newest three featured pieces show on the homepage.</p>
       <ul class="admin-list">${recent.filter((p) => p.status === 'published').slice(0, 40).map((p) => `<li>${thumb(p)}
         <span class="what">${esc(excerpt(label(p), 80))}<small>${esc(KINDS[p.kind].name)} · @${esc(p.author?.username)}</small></span>
@@ -697,6 +704,34 @@ async function viewAdmin() {
       await db.setPieceMedia(id, fields);
       toast('Picture added'); route();
     } catch (err) { msg.innerHTML = errorBox(err); btn.disabled = false; }
+  };
+  // Import from the Writing Desk: a JSON file of finished pieces, posted as you after a preview.
+  const diFile = document.getElementById('di-file'), diList = document.getElementById('di-list'), diMsg = document.getElementById('di-msg');
+  const DI_KINDS = ['piece', 'story', 'humor'];
+  diFile.onchange = async () => {
+    diList.innerHTML = ''; diMsg.textContent = '';
+    const x = diFile.files[0]; if (!x) return;
+    let data;
+    try { data = JSON.parse(await x.text()); } catch { diMsg.textContent = 'That file is not a Writing Desk export.'; return; }
+    if (data.format !== 'writing-desk-v1' || !Array.isArray(data.pieces)) { diMsg.textContent = 'That file is not a Writing Desk export.'; return; }
+    const have = new Set(recent.map((p) => (p.title || '').trim().toLowerCase()).filter(Boolean));
+    const items = data.pieces.map((p) => ({ kind: DI_KINDS.includes(p.kind) ? p.kind : 'piece', title: String(p.title || '').trim().slice(0, 140), body: String(p.body || '').trim().slice(0, 20000),
+      color: String(p.color || 'yellow'), backdrop: 'aged', visibility: 'public', status: 'published' })).filter((p) => p.body);
+    diList.innerHTML = `<ul class="admin-list">${items.map((p, i) => { const dup = p.title && have.has(p.title.toLowerCase()); return `<li>
+      <label class="check"><input type="checkbox" data-di="${i}" ${dup ? '' : 'checked'}> <span class="what">${esc(p.title || excerpt(p.body, 60))}<small>${esc(KINDS[p.kind].name)} · ${esc(p.color)} · ${p.body.split(/\s+/).length} words${dup ? ' · already on the site, unticked' : ''}</small></span></label></li>`; }).join('')}</ul>
+      <div class="actions"><button class="btn" type="button" id="di-post">Post ticked pieces</button></div>`;
+    document.getElementById('di-post').onclick = async (e) => {
+      const btn = e.currentTarget; const picks = [...diList.querySelectorAll('[data-di]:checked')].map((c) => items[Number(c.dataset.di)]);
+      if (!picks.length) { diMsg.textContent = 'Tick at least one piece.'; return; }
+      btn.disabled = true; let ok = 0, bad = [];
+      for (const p of picks) {
+        try { await db.createPiece(p); ok++; diMsg.textContent = `Posted ${ok} of ${picks.length}…`; }
+        catch (err) { bad.push(`${p.title || excerpt(p.body, 40)} (${err.message})`); }
+      }
+      diMsg.innerHTML = `Posted ${ok} of ${picks.length}.` + (bad.length ? ` These did not post: ${esc(bad.join('; '))}` : ' Mark them Published in the Writing Desk.');
+      if (ok) toast(`${ok} posted`);
+      btn.disabled = false;
+    };
   };
   main.querySelectorAll('[data-feature]').forEach((b) => { b.onclick = async () => {
     const on = b.getAttribute('aria-pressed') !== 'true'; b.disabled = true;
