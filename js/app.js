@@ -8,7 +8,9 @@ const banner = document.getElementById('banner');
 // ---------- sections ----------
 const KINDS = {
   quote:  { slug: 'quotes',   name: 'Quotes',     blurb: 'Lines from real life, and the story of why they stuck.', cta: 'Share a quote' },
-  piece:  { slug: 'pieces',   name: 'Pieces',     blurb: 'Original lines, poems, lyrics and prose.', cta: 'Post a piece' },
+  piece:  { slug: 'pieces',   name: 'Pieces',     blurb: 'Original prose and reflections.', cta: 'Post a piece' },
+  poem:   { slug: 'poems',    name: 'Poems',      blurb: 'Poems and song lyrics.', cta: 'Post a poem' },
+  line:   { slug: 'lines',    name: 'Lines',      blurb: 'One-liners, quips and lines worth keeping.', cta: 'Share a line' },
   story:  { slug: 'stories',  name: 'Stories',    blurb: 'Words that changed something — short or long.', cta: 'Tell a story' },
   humor:  { slug: 'humor',    name: 'Humor',      blurb: 'The quips, one-liners and family stories that still make you laugh.', cta: 'Share something funny' },
   sketch: { slug: 'sketches', name: 'Sketches²',  blurb: '(sketches of sketches) Short scenes, shared for feedback.', cta: 'Share a sketch' },
@@ -120,7 +122,7 @@ async function viewHome() {
   };
   const tile = (p, big) => {
     const vis = visualHtml(p);
-    const kicker = { quote: 'Quote', piece: 'Piece', story: 'Story', humor: 'Humor', sketch: 'Sketch', photo: 'Picture' }[p.kind];
+    const kicker = { quote: 'Quote', piece: 'Piece', poem: 'Poem', line: 'Line', story: 'Story', humor: 'Humor', sketch: 'Sketch', photo: 'Picture' }[p.kind];
     if (!vis) return `<a class="tile text ${big ? 'big' : ''}" href="#/p/${esc(p.id)}"><p class="kicker">${kicker}</p>
       <p class="lineq">${esc(excerpt(p.body, big ? 260 : 120))}</p><b>${esc(p.title || '')}</b>
       <span class="acts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} replies</span></span></a>`;
@@ -157,7 +159,9 @@ async function viewHome() {
       <div class="band-actions"><a class="btn-dark" href="#/share/quote">Share a quote</a><a class="btn-ghost" href="#/share/story">Share a story</a></div></div></section>
 
     ${await row('quote', 'Lines worth passing down')}
-    ${await row('piece', 'Poems and prose')}
+    ${await row('piece', 'Prose and pieces')}
+    ${await row('poem', 'Poems and songs')}
+    ${await row('line', 'Lines and quips')}
     ${await row('story', 'Words that changed something')}
     ${await row('photo', 'Pictures along the way')}
     ${await row('humor', 'Still makes us laugh')}
@@ -301,7 +305,7 @@ async function viewPiece(id) {
   } else {
     content = `${p.photo_path ? `<div class="hero-media"><div class="media-box wide">${photoHtml(p, { tone: false })}</div></div>` : ''}
       ${p.title ? `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>` : ''}
-      <div class="prose ${p.kind === 'piece' ? 'verse' : ''}">${esc(p.body)}</div>`;
+      <div class="prose ${p.kind === 'piece' || p.kind === 'poem' ? 'verse' : ''}">${esc(p.body)}</div>`;
   }
   main.innerHTML = `
     <article class="sheet paper">
@@ -427,13 +431,17 @@ async function viewShare(kind) {
       <textarea id="f-body" class="scene-input" required maxlength="20000" rows="10" placeholder="DAD: You packed socks?"></textarea>
       <label for="f-start">Where I started <span class="opt">(optional — an earlier draft)</span></label>
       <textarea id="f-start" class="scene-input" maxlength="3000" rows="5"></textarea>`;
+  } else if (kind === 'line') {
+    fields = `
+      <label for="f-body">Your line</label>
+      <textarea id="f-body" required maxlength="500" rows="3" placeholder="A one-liner, a quip, a thought worth keeping…"></textarea>`;
   } else {
-    const ph = { piece: ['Margins', 'Every page I ever loved…'], story: ['The note in the toolbox', 'When my dad passed, I found…'], humor: ['Dinner rules, Southern edition', 'My aunt\'s only rule at Thanksgiving…'] }[kind];
+    const ph = { poem: ['Untitled', 'Roses are red…'], piece: ['Margins', 'Every page I ever loved…'], story: ['The note in the toolbox', 'When my dad passed, I found…'], humor: ['Dinner rules, Southern edition', 'My aunt\'s only rule at Thanksgiving…'] }[kind];
     fields = `
       <label for="f-title">Title</label>
-      <input id="f-title" ${kind === 'piece' ? '' : 'required'} maxlength="140" placeholder="${esc(ph[0])}">
-      <label for="f-body">${kind === 'piece' ? 'Your piece' : kind === 'story' ? 'Your story' : 'The funny part'}</label>
-      <textarea id="f-body" class="${kind === 'piece' ? 'verse-input' : ''}" required maxlength="20000" rows="${kind === 'humor' ? 5 : 10}" placeholder="${esc(ph[1])}"></textarea>`;
+      <input id="f-title" ${kind === 'piece' || kind === 'poem' ? '' : 'required'} maxlength="140" placeholder="${esc(ph[0])}">
+      <label for="f-body">${kind === 'piece' ? 'Your piece' : kind === 'poem' ? 'Your poem or song' : kind === 'story' ? 'Your story' : 'The funny part'}</label>
+      <textarea id="f-body" class="${kind === 'piece' || kind === 'poem' ? 'verse-input' : ''}" required maxlength="20000" rows="${kind === 'humor' ? 5 : 10}" placeholder="${esc(ph[1])}"></textarea>`;
   }
   main.innerHTML = `
     <form id="share" class="sheet paper stack">
@@ -707,7 +715,7 @@ async function viewAdmin() {
   };
   // Import from the Writing Desk: a JSON file of finished pieces, posted as you after a preview.
   const diFile = document.getElementById('di-file'), diList = document.getElementById('di-list'), diMsg = document.getElementById('di-msg');
-  const DI_KINDS = ['piece', 'story', 'humor'];
+  const DI_KINDS = ['piece', 'poem', 'line', 'story', 'humor'];
   diFile.onchange = async () => {
     diList.innerHTML = ''; diMsg.textContent = '';
     const x = diFile.files[0]; if (!x) return;

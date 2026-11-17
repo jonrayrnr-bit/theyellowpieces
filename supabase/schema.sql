@@ -38,7 +38,7 @@ create table public.sources (
 create table public.pieces (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  kind text not null check (kind in ('quote', 'piece', 'story', 'humor', 'sketch')),
+  kind text not null check (kind in ('quote', 'piece', 'poem', 'line', 'story', 'humor', 'sketch', 'photo')),
   title text not null default '' check (char_length(title) <= 140),
   body text not null check (char_length(body) between 1 and 20000),
   said_by text not null default '' check (char_length(said_by) <= 140),       -- quotes: who said it
