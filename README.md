@@ -21,6 +21,7 @@ phone like an app (a PWA).
 | `supabase/schema.sql` | Database setup: tables, security rules, highlighter colors, quote sources |
 | `supabase/update-2026-10-18-launch.sql` | Launch update: photo storage, featured pieces, pick-one pairs and votes, reply counts, admins |
 | `supabase/update-2026-10-18-admin-edit.sql` | Lets admins edit any piece's words from the site |
+| `supabase/update-2026-11-18-piece-images.sql` | Adds `image_svg` to pieces and an admin-only function to set it (run before using piece images) |
 | `demo/photos/` | J. Ray's starter photos, used only in demo mode |
 | `manifest.webmanifest`, `sw.js`, `icons/` | What lets it install as a phone app |
 
@@ -45,6 +46,15 @@ whole, never cropped.
 Admins get an **Edit** button on every piece (and in the admin list): change the title, words,
 who said it, color and featured, or replace/remove the photo. The downsizer shows the original
 and stored size (1200, 1600 or 2048 px) before saving, and keeps the original when it's already small.
+
+## Piece images (from the Writing Desk)
+
+A piece can carry a small SVG picture. It shows as the piece's tile (title over the picture, or beside it; the
+footer switch lets you compare and remembers the choice) and, faded, fixed behind the text while the piece is read.
+The Writing Desk's JSON export includes each piece's `image_svg`; **Admin → Import from the Writing Desk** reads it,
+cleans it (no scripts, links or embedded pages), shows a thumbnail in the preview, and attaches it when posting. For
+pieces already on the site, a second tick adds or replaces just the picture. Admins can also change a piece's picture
+under Edit. Run `supabase/update-2026-11-18-piece-images.sql` once before deploying.
 
 ## Sections
 
