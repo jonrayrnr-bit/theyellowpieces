@@ -110,7 +110,7 @@ function stuckBtn(p, on) {
   return `<button class="stuck ${on ? 'on' : ''}" data-stuck="${esc(p.id)}" aria-pressed="${on}" aria-label="This stuck with me">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16l-7-4-7 4z"/></svg><span>${p.stuck_count}</span></button>`;
 }
-function card(p, stuck) {
+function card(p, stuck, bare = false) {
   const k = KINDS[p.kind];
   let inner;
   if (p.kind === 'quote') {
@@ -121,8 +121,8 @@ function card(p, stuck) {
       ? `<a class="arttile" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${artImg(p)}<span class="arttitle">${esc(label(p))}</span></a>
       <p class="body-ex">${esc(excerpt(p.body, 220))}</p>`
       : `${p.photo_path ? `<a href="#/p/${esc(p.id)}" tabindex="-1" aria-hidden="true"><div class="media-box ${p.kind === 'photo' ? '' : 'wide'}">${photoHtml(p)}</div></a>` : ''}
-      <h3><a href="#/p/${esc(p.id)}">${esc(label(p))}</a></h3>
-      ${p.kind === 'photo' ? (p.body ? `<p class="writeup-ex">${esc(excerpt(p.body, 140))}</p>` : '') : `<p class="body-ex">${esc(excerpt(p.body, 220))}</p>`}`;
+      ${bare && p.kind === 'photo' ? '' : `<h3><a href="#/p/${esc(p.id)}">${esc(label(p))}</a></h3>`}
+      ${p.kind === 'photo' ? (bare ? '' : p.body ? `<p class="writeup-ex">${esc(excerpt(p.body, 140))}</p>` : '') : `<p class="body-ex">${esc(excerpt(p.body, 220))}</p>`}`;
   }
   return `<article class="card sheet-${esc(p.kind)} ${p.image_svg && !p.photo_path && p.kind !== 'quote' ? 'has-art' : ''}">
     ${inner}
@@ -132,10 +132,10 @@ function card(p, stuck) {
       <span class="dot dot-${esc(p.color)}" title="${esc(p.color)} highlight"></span></footer>
   </article>`;
 }
-async function cards(list, empty = 'Nothing here yet. Be the first.') {
+async function cards(list, empty = 'Nothing here yet. Be the first.', bare = false) {
   if (!list.length) return `<p class="empty">${esc(empty)}</p>`;
   const st = await db.myStuck(list.map((p) => p.id));
-  return `<div class="grid">${list.map((p) => card(p, st)).join('')}</div>`;
+  return `<div class="grid">${list.map((p) => card(p, st, bare)).join('')}</div>`;
 }
 async function colorStrip(active) {
   const cs = await db.colors();
@@ -162,7 +162,7 @@ async function viewHome() {
     const k = KINDS[kind];
     return `<section aria-labelledby="sec-${kind}"><div class="sec-head"><div><p class="kicker">${esc(k.name)}</p><h2 class="section-title" id="sec-${kind}">${title}</h2></div>
       <a class="sec-all" href="#/${k.slug}">All ${esc(k.name.toLowerCase())} →</a></div>
-      ${await cards(list, kind === 'photo' ? '' : 'Nothing here yet. Be the first.')}</section>`;
+      ${await cards(list, kind === 'photo' ? '' : 'Nothing here yet. Be the first.', kind === 'photo')}</section>`;
   };
   const tile = (p, big) => {
     const vis = visualHtml(p);
