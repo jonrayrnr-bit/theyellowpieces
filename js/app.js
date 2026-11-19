@@ -1,6 +1,6 @@
 import * as db from './data.js';
 import { BACKDROPS, quoteCardHtml, quoteCardPng } from './card.js';
-import { ABOUT } from './config.js';
+import { ABOUT, CONTACT_EMAIL, ANALYTICS_TOKEN } from './config.js';
 
 const main = document.getElementById('main');
 const accountEl = document.getElementById('account');
@@ -600,6 +600,25 @@ function viewAbout() {
   });
 }
 
+function viewPrivacy() {
+  document.title = 'Privacy · The Yellow Pieces';
+  const contact = CONTACT_EMAIL ? `<a href="mailto:${esc(CONTACT_EMAIL)}">${esc(CONTACT_EMAIL)}</a>` : 'the email address in any message from us';
+  main.innerHTML = `
+    <article class="sheet paper prose-page">
+      <h1 class="sheet-title">Privacy</h1>
+      <p>Short version: we keep what we need to run the site, and we don't sell or share it.</p>
+      <h2 class="sub">Your email</h2>
+      <p>If you sign up for "A yellow piece now and then," we store your email address to send you the occasional line or story. Every email includes a link to unsubscribe, and you can also ask us to remove you at ${contact}.</p>
+      <h2 class="sub">Your account and what you share</h2>
+      <p>If you create an account, we keep your sign-in email and the name and pieces you choose to post. Pieces marked public can be read by anyone. Drafts and private pieces stay yours. You can ask us to delete your account and your pieces at ${contact}.</p>
+      <h2 class="sub">Visitor stats</h2>
+      <p>We may use simple, cookie-free visitor counts (page views and where visitors come from) to see what people enjoy. They don't identify you.</p>
+      <h2 class="sub">Who handles the data</h2>
+      <p>The site's data is stored with Supabase, the site is served by Cloudflare, and emails are sent through Resend. They process it only to run the service. We never sell your information.</p>
+      <p class="actions"><a class="btn-ghost" href="#/">Back to the pieces</a></p>
+    </article>`;
+}
+
 function viewLearn() {
   document.title = 'Learn to Write · The Yellow Pieces';
   main.innerHTML = `
@@ -1070,6 +1089,13 @@ document.addEventListener('click', async (e) => {
   b.disabled = false;
 });
 
+
+// Optional visitor stats (Cloudflare Web Analytics). Off until a token is set in js/config.js.
+if (ANALYTICS_TOKEN && !new URLSearchParams(location.search).has('demo')) {
+  const a = document.createElement('script'); a.defer = true; a.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  a.dataset.cfBeacon = JSON.stringify({ token: ANALYTICS_TOKEN, spa: true }); document.head.appendChild(a);
+}
+
 async function route() {
   const [hashPath, anchor] = location.hash.slice(1).split('#');
   const path = (hashPath || '/').split('?')[0];
@@ -1087,6 +1113,7 @@ async function route() {
     else if (parts[0] === 'share' && parts[1] && KINDS[parts[1]]) await viewShare(parts[1]);
     else if (parts[0] === 'share') await viewShareChooser();
     else if (parts[0] === 'about') viewAbout();
+    else if (parts[0] === 'privacy') viewPrivacy();
     else if (parts[0] === 'learn') viewLearn();
     else if (parts[0] === 'u' && parts[1]) await viewProfile(decodeURIComponent(parts[1]));
     else if (parts[0] === 'search') await viewSearch();

@@ -22,3 +22,11 @@ export const ABOUT = {
   signupHeadline: 'A yellow piece now and then',
   signupLine: 'One good line or story in your inbox. No spam, and you can leave anytime.',
 };
+
+// Where people can write to you (shown on the Privacy page). Leave '' to hide the link.
+export const CONTACT_EMAIL = '';
+
+// Visitor stats. Paste your Cloudflare Web Analytics token between the quotes to turn it on
+// (Cloudflare dashboard > Analytics & Logs > Web Analytics > Add a site > copy the token).
+// It sets no cookies and tracks no individuals. Leave '' to keep stats off.
+export const ANALYTICS_TOKEN = '';
