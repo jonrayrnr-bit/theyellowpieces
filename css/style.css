@@ -319,3 +319,26 @@ textarea { resize: vertical; }
   .band { padding: 28px 22px; }
   .home section, .block { margin-top: 56px; }
 }
+
+/* ---------- piece images (from the Writing Desk) ---------- */
+.art { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--surface-2); }
+.artvis { position: absolute; inset: 0; }
+.arttile { position: relative; display: block; border-radius: 14px; overflow: hidden; aspect-ratio: 1 / 1; text-decoration: none; color: #fff; background: var(--surface-2); }
+.arttile .art { position: absolute; inset: 0; transition: transform 0.5s ease; }
+.arttile:hover .art, .arttile:focus-visible .art { transform: scale(1.04); }
+.arttile .arttitle { position: absolute; left: 0; right: 0; bottom: 0; padding: 38px 16px 14px; font: 500 1.4rem/1.2 var(--serif); color: #fff;
+  background: linear-gradient(to top, rgba(10, 12, 16, 0.82), rgba(10, 12, 16, 0)); text-wrap: balance; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
+.card.has-art .arttile + h3 { display: none; }
+/* Alternate layout: the title next to the picture */
+body[data-tiles="beside"] .card.has-art { padding: 12px; }
+body[data-tiles="beside"] .card.has-art .arttile { display: grid; grid-template-columns: 42% minmax(0, 1fr); aspect-ratio: auto; background: transparent; color: var(--text); gap: 14px; align-items: center; }
+body[data-tiles="beside"] .card.has-art .arttile .art { position: static; aspect-ratio: 1 / 1; border-radius: 12px; }
+body[data-tiles="beside"] .card.has-art .arttile .arttitle { position: static; padding: 0; background: none; color: var(--text); text-shadow: none; font-size: 1.35rem; }
+body[data-tiles="beside"] .card.has-art .arttile:hover .art { transform: none; }
+.tilepref { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 0.92rem; }
+.tilepref button { background: none; border: 1px solid var(--line, #3a3f47); color: var(--text-soft); border-radius: 999px; padding: 4px 12px; font: 600 0.88rem var(--ui); cursor: pointer; }
+.tilepref button[aria-pressed="true"] { color: var(--text); border-color: var(--text); }
+/* The faded picture behind a piece while it's read */
+.piece-bg { position: fixed; inset: 0; z-index: -1; background-size: cover; background-position: center; background-repeat: no-repeat; opacity: 0.14; pointer-events: none; }
+.paper.has-bg { background: color-mix(in srgb, var(--surface) 62%, transparent); backdrop-filter: blur(1.5px); }
+.import-art { width: 44px; height: 44px; border-radius: 8px; vertical-align: middle; margin-right: 8px; object-fit: cover; }

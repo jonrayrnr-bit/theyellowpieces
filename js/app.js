@@ -47,6 +47,39 @@ async function needProfile() {
 const byline = (p) => `<p class="meta">shared by <a href="#/u/${esc(p.author?.username)}">@${esc(p.author?.username)}</a>
   · <a href="#/${KINDS[p.kind].slug}">${esc(KINDS[p.kind].name)}</a> · ${ago(p.created_at)}</p>`;
 
+// ---------- piece images (SVGs made in the Writing Desk) ----------
+const svgUri = (svg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+// Cleans an SVG before it is stored: only plain shapes survive (no scripts, links or embedded pages).
+// Images are always shown through <img>/CSS, where scripts can't run, so this is a second lock.
+function cleanSvg(raw) {
+  raw = String(raw || '').trim();
+  if (!raw) return '';
+  if (raw.length > 400000) return '';
+  const doc = new DOMParser().parseFromString(raw, 'image/svg+xml');
+  const root = doc.documentElement;
+  if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) return '';
+  doc.querySelectorAll('script,foreignObject,iframe,object,embed,audio,video,a,animate,set,animateTransform,animateMotion,image,use').forEach((n) => n.remove());
+  doc.querySelectorAll('*').forEach((n) => [...n.attributes].forEach((at) => {
+    const nm = at.name.toLowerCase(), v = at.value.trim().toLowerCase();
+    if (nm.startsWith('on') || nm === 'href' || nm === 'xlink:href' || /javascript:|data:text\/html|url\(\s*['"]?\s*(https?:|\/\/|data:)/.test(v)) n.removeAttribute(at.name);
+  }));
+  root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  if (!root.getAttribute('viewBox')) root.setAttribute('viewBox', '0 0 400 400');
+  root.removeAttribute('width'); root.removeAttribute('height');
+  const out = new XMLSerializer().serializeToString(root);
+  return out.length > 80000 ? '' : out;
+}
+const artImg = (p, cls = 'art') => `<img class="${cls}" src="${esc(svgUri(p.image_svg))}" alt="" loading="lazy">`;
+// The faded picture behind a piece while it's read.
+function clearPieceBg() { document.getElementById('piece-bg')?.remove(); }
+function setPieceBg(svg) {
+  clearPieceBg();
+  const d = document.createElement('div');
+  d.id = 'piece-bg'; d.className = 'piece-bg'; d.setAttribute('aria-hidden', 'true');
+  d.style.backgroundImage = `url("${svgUri(svg)}")`;
+  document.body.appendChild(d);
+}
+
 // ---------- media ----------
 // Pictures with words already in them are shown whole (never cropped), over a soft blur of themselves.
 // Everything else fills its frame, with the muted "Lemon Dusk" tone that blooms to full color on hover.
@@ -60,6 +93,7 @@ function photoHtml(p, { tone = true } = {}) {
 function visualHtml(p, opts = {}) {
   if (p.kind === 'quote' && !p.photo_has_text) return quoteCardHtml(p, { photo: db.photoUrl(p.photo_path) });
   if (p.photo_path) return photoHtml(p, opts);
+  if (p.image_svg) return `<div class="artvis">${artImg(p)}</div>`;
   return '';
 }
 const label = (p) => p.title || excerpt(p.body, 60);
@@ -76,11 +110,14 @@ function card(p, stuck) {
     inner = `<a class="qlink" href="#/p/${esc(p.id)}" aria-label="Open quote">${p.photo_has_text ? `<div class="media-box">${photoHtml(p)}</div>` : quoteCardHtml(p, { photo: db.photoUrl(p.photo_path) })}</a>
       ${p.writeup ? `<p class="writeup-ex">${esc(excerpt(p.writeup, 140))}</p>` : ''}`;
   } else {
-    inner = `${p.photo_path ? `<a href="#/p/${esc(p.id)}" tabindex="-1" aria-hidden="true"><div class="media-box ${p.kind === 'photo' ? '' : 'wide'}">${photoHtml(p)}</div></a>` : ''}
+    inner = p.image_svg && !p.photo_path
+      ? `<a class="arttile" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${artImg(p)}<span class="arttitle">${esc(label(p))}</span></a>
+      <p class="body-ex">${esc(excerpt(p.body, 220))}</p>`
+      : `${p.photo_path ? `<a href="#/p/${esc(p.id)}" tabindex="-1" aria-hidden="true"><div class="media-box ${p.kind === 'photo' ? '' : 'wide'}">${photoHtml(p)}</div></a>` : ''}
       <h3><a href="#/p/${esc(p.id)}">${esc(label(p))}</a></h3>
       ${p.kind === 'photo' ? (p.body ? `<p class="writeup-ex">${esc(excerpt(p.body, 140))}</p>` : '') : `<p class="body-ex">${esc(excerpt(p.body, 220))}</p>`}`;
   }
-  return `<article class="card sheet-${esc(p.kind)}">
+  return `<article class="card sheet-${esc(p.kind)} ${p.image_svg && !p.photo_path && p.kind !== 'quote' ? 'has-art' : ''}">
     ${inner}
     <footer>${stuckBtn(p, stuck.has(p.id))}
       <a class="replies" href="#/p/${esc(p.id)}#responses">${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</a>
@@ -308,7 +345,7 @@ async function viewPiece(id) {
       <div class="prose ${p.kind === 'piece' || p.kind === 'poem' ? 'verse' : ''}">${esc(p.body)}</div>`;
   }
   main.innerHTML = `
-    <article class="sheet paper">
+    <article class="sheet paper ${p.image_svg ? 'has-bg' : ''}">
       ${p.status === 'draft' ? `<p class="pill">Draft · only you can see this</p>` : ''}
       ${content}
       ${byline(p)}
@@ -339,6 +376,7 @@ async function viewPiece(id) {
         : `<p><a href="#/signin">Sign in</a> to respond.</p>`}
     </section>`;
 
+  if (p.image_svg) setPieceBg(p.image_svg);
   main.querySelector('[data-share]').onclick = async () => {
     const url = location.href;
     try { if (navigator.share) await navigator.share({ title: 'The Yellow Pieces', text: p.kind === 'quote' ? `“${p.body}”` : (p.title || ''), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch {}
@@ -723,20 +761,35 @@ async function viewAdmin() {
     try { data = JSON.parse(await x.text()); } catch { diMsg.textContent = 'That file is not a Writing Desk export.'; return; }
     if (data.format !== 'writing-desk-v1' || !Array.isArray(data.pieces)) { diMsg.textContent = 'That file is not a Writing Desk export.'; return; }
     const have = new Set(recent.map((p) => (p.title || '').trim().toLowerCase()).filter(Boolean));
+    const byTitle = new Map(recent.map((p) => [(p.title || '').trim().toLowerCase(), p]));
     const items = data.pieces.map((p) => ({ kind: DI_KINDS.includes(p.kind) ? p.kind : 'piece', title: String(p.title || '').trim().slice(0, 140), body: String(p.body || '').trim().slice(0, 20000),
-      color: String(p.color || 'yellow'), backdrop: 'aged', visibility: 'public', status: 'published' })).filter((p) => p.body);
-    diList.innerHTML = `<ul class="admin-list">${items.map((p, i) => { const dup = p.title && have.has(p.title.toLowerCase()); return `<li>
-      <label class="check"><input type="checkbox" data-di="${i}" ${dup ? '' : 'checked'}> <span class="what">${esc(p.title || excerpt(p.body, 60))}<small>${esc(KINDS[p.kind].name)} · ${esc(p.color)} · ${p.body.split(/\s+/).length} words${dup ? ' · already on the site, unticked' : ''}</small></span></label></li>`; }).join('')}</ul>
+      color: String(p.color || 'yellow'), backdrop: 'aged', visibility: 'public', status: 'published', image_svg: cleanSvg(p.image_svg) })).filter((p) => p.body);
+    diList.innerHTML = `<ul class="admin-list">${items.map((p, i) => { const dup = p.title && have.has(p.title.toLowerCase()); const ex = dup ? byTitle.get(p.title.toLowerCase()) : null;
+      const addImg = ex && p.image_svg && ex.image_svg !== p.image_svg;
+      return `<li>
+      <label class="check"><input type="checkbox" data-di="${i}" ${dup ? '' : 'checked'}> <span class="what">${p.image_svg ? `<img class="import-art" src="${esc(svgUri(p.image_svg))}" alt="">` : ''}${esc(p.title || excerpt(p.body, 60))}<small>${esc(KINDS[p.kind].name)} · ${esc(p.color)} · ${p.body.split(/\s+/).length} words${p.image_svg ? ' · with picture' : ''}${dup ? ' · already on the site, unticked' : ''}</small></span></label>
+      ${addImg ? `<label class="check"><input type="checkbox" data-di-img="${i}" checked> <span class="what"><small>${ex.image_svg ? 'Replace' : 'Add'} the picture on the existing piece</small></span></label>` : ''}</li>`; }).join('')}</ul>
       <div class="actions"><button class="btn" type="button" id="di-post">Post ticked pieces</button></div>`;
     document.getElementById('di-post').onclick = async (e) => {
       const btn = e.currentTarget; const picks = [...diList.querySelectorAll('[data-di]:checked')].map((c) => items[Number(c.dataset.di)]);
-      if (!picks.length) { diMsg.textContent = 'Tick at least one piece.'; return; }
+      const imgPicks = [...diList.querySelectorAll('[data-di-img]:checked')].map((c) => items[Number(c.dataset.diImg)]);
+      if (!picks.length && !imgPicks.length) { diMsg.textContent = 'Tick at least one piece.'; return; }
       btn.disabled = true; let ok = 0, bad = [];
       for (const p of picks) {
-        try { await db.createPiece(p); ok++; diMsg.textContent = `Posted ${ok} of ${picks.length}…`; }
+        try {
+          const { image_svg, ...fields } = p;
+          const id = await db.createPiece(fields); ok++;
+          if (image_svg) { try { await db.setPieceImage(id, image_svg); } catch (err) { bad.push(`${p.title || excerpt(p.body, 40)} picture (${err.message})`); } }
+          diMsg.textContent = `Posted ${ok} of ${picks.length}…`;
+        }
         catch (err) { bad.push(`${p.title || excerpt(p.body, 40)} (${err.message})`); }
       }
-      diMsg.innerHTML = `Posted ${ok} of ${picks.length}.` + (bad.length ? ` These did not post: ${esc(bad.join('; '))}` : ' Mark them Published in the Writing Desk.');
+      let pics = 0;
+      for (const p of imgPicks) {
+        try { const ex = recent.find((r) => (r.title || '').trim().toLowerCase() === p.title.toLowerCase()); if (ex) { await db.setPieceImage(ex.id, p.image_svg); pics++; } }
+        catch (err) { bad.push(`${p.title} picture (${err.message})`); }
+      }
+      diMsg.innerHTML = `Posted ${ok} of ${picks.length}.${pics ? ` Added ${pics} picture${pics === 1 ? '' : 's'} to pieces already on the site.` : ''}` + (bad.length ? ` These did not post: ${esc(bad.join('; '))}` : ' Mark them Published in the Writing Desk.');
       if (ok) toast(`${ok} posted`);
       btn.disabled = false;
     };
@@ -795,6 +848,10 @@ async function viewEdit(id) {
       ${field('e-alt', 'Describe the picture', p.photo_alt, { max: 300, hint: '(for people using screen readers)' })}
       <label class="check"><input type="checkbox" id="e-text" ${p.photo_has_text ? 'checked' : ''}> The words are already in the picture (always shown whole, never cropped)</label>
       ${p.photo_path ? `<label class="check"><input type="checkbox" id="e-remove"> Remove the photo from this piece</label>` : ''}
+      <label for="e-svg">${p.image_svg ? 'Replace the Writing Desk picture' : 'Add a Writing Desk picture'} <span class="opt">(an .svg file; shown as the tile and, faded, behind the text)</span></label>
+      ${p.image_svg ? `<img class="import-art" src="${esc(svgUri(p.image_svg))}" alt="" style="width:88px;height:88px">` : ''}
+      <input id="e-svg" type="file" accept=".svg,image/svg+xml">
+      ${p.image_svg ? `<label class="check"><input type="checkbox" id="e-svg-remove"> Remove the Writing Desk picture</label>` : ''}
     </fieldset>
 
     <div class="actions"><button class="btn" type="submit">Save changes</button><a class="btn-ghost" href="#/p/${esc(p.id)}">Cancel</a></div>
@@ -835,6 +892,9 @@ async function viewEdit(id) {
       if (prepared) { msg.textContent = 'Uploading the photo…'; media.photo_path = await db.uploadBlob(prepared.blob); }
       else if (removing) media.photo_path = '';
       await db.setPieceMedia(p.id, media);
+      const svgFile = f.querySelector('#e-svg').files[0];
+      if (svgFile) { const clean = cleanSvg(await svgFile.text()); if (!clean) throw new Error('That does not look like a usable SVG file.'); await db.setPieceImage(p.id, clean); }
+      else if (f.querySelector('#e-svg-remove')?.checked) await db.setPieceImage(p.id, '');
       if ((prepared || removing) && p.photo_path) await db.removePhotoFile(p.photo_path).catch(() => {});
       toast('Saved'); go('#/p/' + p.id);
     } catch (err) { msg.innerHTML = errorBox(err); btn.disabled = false; }
@@ -872,6 +932,7 @@ async function route() {
   const parts = path.split('/').filter(Boolean);
   document.title = 'The Yellow Pieces';
   stopPickTimer();
+  clearPieceBg();
   document.querySelectorAll('.cats [data-nav]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.nav === (parts[0] || '')));
   main.setAttribute('aria-busy', 'true');
   try {
@@ -922,6 +983,14 @@ async function route() {
     const user = await db.currentUser();
     if (user && !(await db.myProfile()) && !location.hash.startsWith('#/welcome')) go('#/welcome');
   });
+  const setTiles = (v) => {
+    document.body.dataset.tiles = v;
+    document.querySelectorAll('#tilepref [data-tiles]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tiles === v)));
+    try { localStorage.setItem('yp-tiles', v); } catch {}
+  };
+  let tp = 'over'; try { tp = localStorage.getItem('yp-tiles') || 'over'; } catch {}
+  setTiles(tp === 'beside' ? 'beside' : 'over');
+  document.querySelectorAll('#tilepref [data-tiles]').forEach((b) => { b.onclick = () => setTiles(b.dataset.tiles); });
   await renderAccount();
   window.addEventListener('hashchange', () => { route(); window.scrollTo(0, 0); });
   await route();

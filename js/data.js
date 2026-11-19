@@ -29,7 +29,7 @@ export const onAuth = (fn) => listeners.add(fn);
 
 const PIECE_SELECT =
   'id,kind,title,body,said_by,source_slug,writeup,started_at,aiming_for,color,backdrop,visibility,status,stuck_count,created_at,author_id,' +
-  'photo_path,photo_has_text,photo_alt,featured,featured_at,comment_count,' +
+  'photo_path,photo_has_text,photo_alt,image_svg,featured,featured_at,comment_count,' +
   'author:profiles!pieces_author_id_fkey(username),source:sources!pieces_source_slug_fkey(name,slug)';
 
 function check({ data, error }) {
@@ -310,6 +310,12 @@ export async function setPieceMedia(id, fields) {
     p_id: id, p_photo_path: fields.photo_path ?? null, p_photo_has_text: fields.photo_has_text ?? null,
     p_photo_alt: fields.photo_alt ?? null, p_featured: fields.featured ?? null,
   }));
+}
+
+// Attach (or remove, with '') a Writing Desk image. Admins only.
+export async function setPieceImage(id, svg) {
+  if (mode === 'demo') { const p = demo.pieces.find((x) => x.id === id); if (p) p.image_svg = svg || ''; return; }
+  check(await sb.rpc('admin_set_piece_image', { p_id: id, p_svg: svg || '' }));
 }
 
 // ---------- Featured ----------
