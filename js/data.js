@@ -182,6 +182,11 @@ export async function updatePiece(id, fields) {
     p_color: fields.color ?? null, p_source_slug: fields.source_slug ?? null,
   }));
 }
+// Admin: move a piece to another section (quote, piece, poem, line, story, humor, sketch, photo).
+export async function setPieceKind(id, kind) {
+  if (mode === 'demo') { demo.pieces.find((p) => p.id === id).kind = kind; return; }
+  check(await sb.rpc('admin_set_piece_kind', { p_id: id, p_kind: kind }));
+}
 export async function publishDraft(id) {
   if (mode === 'demo') { demo.pieces.find((p) => p.id === id).status = 'published'; return; }
   check(await sb.from('pieces').update({ status: 'published', updated_at: new Date().toISOString() }).eq('id', id));

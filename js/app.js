@@ -1006,6 +1006,8 @@ async function viewEdit(id) {
   main.innerHTML = `<form id="edit" class="sheet paper stack">
     <p class="kicker">${esc(k.name)} · @${esc(p.author?.username)}</p>
     <h1 class="sheet-title">Edit</h1>
+    <label for="e-kind">Section <span class="opt">(move it to a different page of the site)</span></label>
+    <select id="e-kind">${Object.keys(KINDS).map((x) => `<option value="${esc(x)}" ${x === p.kind ? 'selected' : ''}>${esc(KINDS[x].name)}</option>`).join('')}</select>
     ${p.kind !== 'quote' ? field('e-title', 'Title', p.title, { hint: '(select a word, then tap Highlight)' }) + `<div class="fmt-bar"><button type="button" class="btn-ghost btn-small" data-hl="e-title" title="Highlight the selected word in the title"><mark class="hlw">Highlight</mark></button></div>` : ''}
     <div class="fmt-bar" role="toolbar" aria-label="Text formatting"><button type="button" class="btn-ghost btn-small" data-fmt="**" title="Bold (Ctrl+B)" aria-label="Bold"><b>B</b></button><button type="button" class="btn-ghost btn-small" data-fmt="*" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button><span class="hint">Select words, then tap B or I. Saved as **bold** and *italic*.</span></div>
     ${field('e-body', p.kind === 'quote' ? 'The line' : p.kind === 'photo' ? 'Caption' : p.kind === 'sketch' ? 'Where I\'m at now' : 'The words', p.body, { area: true, rows: p.kind === 'quote' || p.kind === 'photo' ? 3 : 14, max: p.kind === 'quote' ? 400 : 20000 })}
@@ -1073,6 +1075,7 @@ async function viewEdit(id) {
       if (p.kind === 'quote') Object.assign(fields, { said_by: val('e-said').trim(), source_slug: val('e-src'), writeup: val('e-writeup').trim() });
       if (p.kind === 'sketch') Object.assign(fields, { aiming_for: val('e-aim').trim(), started_at: val('e-start').trim() });
       await db.updatePiece(p.id, fields);
+      if (val('e-kind') && val('e-kind') !== p.kind) await db.setPieceKind(p.id, val('e-kind'));
 
       const media = { featured: f.querySelector('#e-feat').checked, photo_alt: val('e-alt').trim(), photo_has_text: f.querySelector('#e-text').checked };
       const removing = f.querySelector('#e-remove')?.checked;
