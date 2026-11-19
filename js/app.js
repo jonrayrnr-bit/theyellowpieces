@@ -756,9 +756,9 @@ async function viewAdmin() {
 
     <section class="paper stack" id="batch-cards">
       <h2 class="section-title">Add many quote cards at once</h2>
-      <p class="hint">Drop a whole batch of finished quote-card pictures here (or choose them). Each one is resized for the web and posted as a quote with the words already in the picture. Type the line under each one if you want it searchable; otherwise the file name is used.</p>
+      <p class="hint">Drop a whole batch of finished quote-card pictures here (or choose them). Each one is resized for the web and posted as a quote with the words already in the picture. Drop the batch's list file (.csv) in with the pictures to fill in each full line automatically, or type the lines yourself; otherwise the file name is used.</p>
       <label class="dropzone" id="bc-drop" for="bc-files"><b>Drag your quote cards here</b><span>or click to choose them (as many as you like)</span></label>
-      <input id="bc-files" class="sr" type="file" accept="image/*" multiple>
+      <input id="bc-files" class="sr" type="file" accept="image/*,.csv" multiple>
       <div id="bc-list"></div>
       <label class="check" id="bc-opts" hidden><input type="checkbox" id="bc-feat"> Feature the first one on the homepage</label>
       <div class="actions"><button class="btn" type="button" id="bc-post" hidden>Post all</button><button class="btn-ghost" type="button" id="bc-clear" hidden>Clear</button></div>
@@ -822,7 +822,13 @@ async function viewAdmin() {
   { const drop = document.getElementById('bc-drop'), inp = document.getElementById('bc-files'), list = document.getElementById('bc-list');
     const postBtn = document.getElementById('bc-post'), clearBtn = document.getElementById('bc-clear'), opts = document.getElementById('bc-opts'), bmsg = document.getElementById('bc-msg');
     let files = [];
-    const nice = (n) => n.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const nice = (n) => n.replace(/\.[^.]+$/, '').replace(/^\d+\s+/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const lines = new Map(); // file name -> full line, from a dropped list (.csv with columns #, Quote, File)
+    const parseCsv = (t) => { const rows = []; let r = [], f = '', q = false;
+      for (let i = 0; i < t.length; i++) { const c = t[i];
+        if (q) { if (c === '"' && t[i + 1] === '"') { f += '"'; i++; } else if (c === '"') q = false; else f += c; }
+        else if (c === '"') q = true; else if (c === ',') { r.push(f); f = ''; } else if (c === '\n') { r.push(f); rows.push(r); r = []; f = ''; } else if (c !== '\r') f += c; }
+      if (f || r.length) { r.push(f); rows.push(r); } return rows; };
     const draw = () => {
       list.innerHTML = files.length ? `<ul class="admin-list">${files.map((x, i) => `<li><img class="thumb" src="${esc(x.url)}" alt=""><span class="what"><input data-bc="${i}" maxlength="400" value="${esc(x.line)}" aria-label="The line on card ${i + 1}" placeholder="The line on this card (optional)"><small>${esc(x.file.name)} · ${kb(x.file.size)}</small></span><button class="link danger" type="button" data-bc-rm="${i}">Remove</button></li>`).join('')}</ul>` : '';
       [postBtn, clearBtn, opts].forEach((el) => { el.hidden = !files.length; });
@@ -830,8 +836,14 @@ async function viewAdmin() {
       list.querySelectorAll('[data-bc]').forEach((el) => el.oninput = () => { files[Number(el.dataset.bc)].line = el.value; });
       list.querySelectorAll('[data-bc-rm]').forEach((el) => el.onclick = () => { files.splice(Number(el.dataset.bcRm), 1); draw(); });
     };
-    const add = (fl) => { for (const file of fl) if (/^image\//.test(file.type)) files.push({ file, url: URL.createObjectURL(file), line: nice(file.name) }); files.sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); draw(); };
-    inp.onchange = () => { add([...inp.files]); inp.value = ''; };
+    const add = async (fl) => {
+      for (const file of fl) if (/\.csv$/i.test(file.name)) { const rows = parseCsv((await file.text()).replace(/^\uFEFF/, ''));
+        const h = rows[0].map((x) => x.trim().toLowerCase()), qi = h.indexOf('quote'), fi = h.indexOf('file');
+        if (qi > -1 && fi > -1) rows.slice(1).forEach((r) => { if (r[fi]) lines.set(r[fi].trim(), r[qi].trim()); }); }
+      for (const file of fl) if (/^image\//.test(file.type)) files.push({ file, url: URL.createObjectURL(file), line: nice(file.name) });
+      files.forEach((x) => { if (lines.has(x.file.name)) x.line = lines.get(x.file.name); });
+      files.sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); draw(); };
+    inp.onchange = async () => { await add([...inp.files]); inp.value = ''; };
     ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => add([...e.dataTransfer.files]));
