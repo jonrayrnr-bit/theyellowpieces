@@ -96,7 +96,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .eyebrow { margin: 0 0 8px; font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-soft); font-weight: 700; }
 
 /* ---------- pick one ---------- */
-.pick { margin-top: 0 !important; }
+.home > section:first-child { margin-top: 0; }
 .pick-head { display: flex; flex-wrap: wrap; gap: 14px 32px; align-items: flex-end; justify-content: space-between; margin-bottom: 26px; }
 .pick-head h1 { flex: 1 1 520px; font: 500 clamp(2.2rem, 6vw, 3.4rem)/1.1 var(--serif); margin: 0; }
 .pick-head p { flex: 0 1 380px; }

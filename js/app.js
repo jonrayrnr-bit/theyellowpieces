@@ -178,7 +178,7 @@ async function viewHome() {
 
   main.innerHTML = `<div class="home">
     ${feat.length ? `<section aria-labelledby="feat-h"><div class="sec-head"><div><p class="kicker">Featured</p><h2 class="section-title" id="feat-h">Yellow pieces to start with</h2></div>
-      <p class="sec-blurb">Lines and stories from J. Ray's journals. Read one, then take a side.</p></div>
+      <p class="sec-blurb">Lines and stories from life. Read one, then take a side.</p></div>
       <div class="featured">${tile(feat[0], true)}${feat.length > 1 ? `<div class="featured-side">${feat.slice(1).map((p) => tile(p, false)).join('')}</div>` : ''}</div>
     </section>` : ''}
 
