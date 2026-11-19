@@ -13,7 +13,7 @@ const KINDS = {
   line:   { slug: 'lines',    name: 'Lines',      blurb: 'One-liners, quips and lines worth keeping.', cta: 'Share a line' },
   story:  { slug: 'stories',  name: 'Stories',    blurb: 'Words that changed something — short or long.', cta: 'Tell a story' },
   humor:  { slug: 'humor',    name: 'Humor',      blurb: 'The quips, one-liners and family stories that still make you laugh.', cta: 'Share something funny' },
-  sketch: { slug: 'sketches', name: 'Sketches²',  blurb: '(sketches of sketches) Short scenes, shared for feedback.', cta: 'Share a sketch' },
+  sketch: { slug: 'sketches', name: 'Sketches & Scratches',  blurb: 'The Works In Progress section for pieces under construction. Discussions and feedback are encouraged (Hard hat recommended, but not required.)', cta: 'Share a sketch' },
   photo:  { slug: 'pictures', name: 'Pictures',   blurb: 'Favorite photos from the places in between.', cta: 'Add a picture' },
 };
 const kindBySlug = (slug) => Object.keys(KINDS).find((k) => KINDS[k].slug === slug);
@@ -211,7 +211,7 @@ async function viewHome() {
     ${await row('story', 'Words that changed something')}
     ${await row('photo', 'Pictures along the way')}
     ${await row('humor', 'Still makes us laugh')}
-    ${await row('sketch', 'Sketches<sup>2</sup>, scenes in progress')}
+    ${await row('sketch', 'Works in progress')}
 
     <section><div class="learn-teaser"><div><p class="kicker">Coming soon</p><h2 class="section-title">Learn to Write</h2>
       <p>Free writing lessons: pieces with worksheets, prompts and further reading, and the writer's own take, unlocked once enough readers weigh in.</p></div>

@@ -64,7 +64,7 @@ under Edit. Run `supabase/update-2026-11-18-piece-images.sql` once before deploy
 - **Pieces** — original lines, poems, lyrics and prose.
 - **Stories** — words that changed something, short or long.
 - **Humor** — quips, one-liners and family stories that still get a laugh.
-- **Sketches²** (sketches of sketches) — a short scene, what the writer is going for,
+- **Sketches & Scratches** (works in progress) — a short scene, what the writer is going for,
   where it started, and notes from readers.
 - **Pictures** — photos from along the way (admins post these from the admin page).
 - **Learn to Write** — a "coming soon" page for the free writing lessons and worksheets.
