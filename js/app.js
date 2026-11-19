@@ -210,7 +210,7 @@ async function viewHome() {
       <ol class="trend">${trending.map((p, i) => `<li><a href="#/p/${esc(p.id)}">
         ${visualHtml(p) ? `<span class="trend-vis">${visualHtml(p)}</span>` : ''}
         <span class="top"><span>${esc(KINDS[p.kind].name)}</span><span>#${i + 1}</span></span>
-        <span class="line">${p.kind === 'quote' ? (visualHtml(p) ? '' : `“${esc(excerpt(p.body, 140))}”`) : (p.title ? ttl(p.title) + ' — ' + esc(excerpt(p.body, 90)) : esc(excerpt(p.body, 140)))}</span>
+        <span class="line">${p.kind === 'photo' ? '' : p.kind === 'quote' ? (visualHtml(p) ? '' : `“${esc(excerpt(p.body, 140))}”`) : (p.title ? ttl(p.title) + ' — ' + esc(excerpt(p.body, 90)) : esc(excerpt(p.body, 140)))}</span>
         <span class="by">@${esc(p.author?.username)}</span>
         <span class="counts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</span></span></a></li>`).join('')}</ol>
     </section>` : ''}
