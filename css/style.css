@@ -377,3 +377,8 @@ mark.hlw { --hlc: var(--hl-yellow); background: linear-gradient(104deg, transpar
 .from-card, .signup-card { text-align: left; }
 .from-card h2 { color: var(--text); }
 .from-card .sec-all { display: inline-block; margin-top: 14px; }
+
+.dropzone { display: grid; gap: 4px; place-items: center; text-align: center; padding: 34px 20px; border: 2px dashed var(--line-strong); border-radius: var(--radius); cursor: pointer; color: var(--text-read); }
+.dropzone b { font-size: 1.1rem; color: var(--text); } .dropzone span { font-size: 0.95rem; color: var(--text-soft); }
+.dropzone.over, .dropzone:hover { border-color: var(--lemon); background: rgba(242, 210, 74, 0.08); }
+#batch-cards .admin-list input { width: 100%; }

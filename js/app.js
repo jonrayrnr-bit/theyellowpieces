@@ -754,6 +754,17 @@ async function viewAdmin() {
       <div class="actions"><button class="btn" type="submit">Upload</button></div><div id="ph-msg" aria-live="polite"></div>
     </form>
 
+    <section class="paper stack" id="batch-cards">
+      <h2 class="section-title">Add many quote cards at once</h2>
+      <p class="hint">Drop a whole batch of finished quote-card pictures here (or choose them). Each one is resized for the web and posted as a quote with the words already in the picture. Type the line under each one if you want it searchable; otherwise the file name is used.</p>
+      <label class="dropzone" id="bc-drop" for="bc-files"><b>Drag your quote cards here</b><span>or click to choose them (as many as you like)</span></label>
+      <input id="bc-files" class="sr" type="file" accept="image/*" multiple>
+      <div id="bc-list"></div>
+      <label class="check" id="bc-opts" hidden><input type="checkbox" id="bc-feat"> Feature the first one on the homepage</label>
+      <div class="actions"><button class="btn" type="button" id="bc-post" hidden>Post all</button><button class="btn-ghost" type="button" id="bc-clear" hidden>Clear</button></div>
+      <div id="bc-msg" aria-live="polite"></div>
+    </section>
+
     <section class="paper stack" id="desk-import">
       <h2 class="section-title">Import from Writing Desk</h2>
       <p class="hint">Choose the file the Writing Desk exported ("Export ready"). You'll see each piece first, then post the ones you tick.</p>
@@ -807,6 +818,41 @@ async function viewAdmin() {
       toast('Picture added'); route();
     } catch (err) { msg.innerHTML = errorBox(err); btn.disabled = false; }
   };
+  // Batch of quote cards: drop many pictures, post them all as quote cards (words already in the picture).
+  { const drop = document.getElementById('bc-drop'), inp = document.getElementById('bc-files'), list = document.getElementById('bc-list');
+    const postBtn = document.getElementById('bc-post'), clearBtn = document.getElementById('bc-clear'), opts = document.getElementById('bc-opts'), bmsg = document.getElementById('bc-msg');
+    let files = [];
+    const nice = (n) => n.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const draw = () => {
+      list.innerHTML = files.length ? `<ul class="admin-list">${files.map((x, i) => `<li><img class="thumb" src="${esc(x.url)}" alt=""><span class="what"><input data-bc="${i}" maxlength="400" value="${esc(x.line)}" aria-label="The line on card ${i + 1}" placeholder="The line on this card (optional)"><small>${esc(x.file.name)} · ${kb(x.file.size)}</small></span><button class="link danger" type="button" data-bc-rm="${i}">Remove</button></li>`).join('')}</ul>` : '';
+      [postBtn, clearBtn, opts].forEach((el) => { el.hidden = !files.length; });
+      postBtn.textContent = `Post all ${files.length} card${files.length === 1 ? '' : 's'}`;
+      list.querySelectorAll('[data-bc]').forEach((el) => el.oninput = () => { files[Number(el.dataset.bc)].line = el.value; });
+      list.querySelectorAll('[data-bc-rm]').forEach((el) => el.onclick = () => { files.splice(Number(el.dataset.bcRm), 1); draw(); });
+    };
+    const add = (fl) => { for (const file of fl) if (/^image\//.test(file.type)) files.push({ file, url: URL.createObjectURL(file), line: nice(file.name) }); files.sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); draw(); };
+    inp.onchange = () => { add([...inp.files]); inp.value = ''; };
+    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', (e) => add([...e.dataTransfer.files]));
+    clearBtn.onclick = () => { files = []; bmsg.textContent = ''; draw(); };
+    postBtn.onclick = async () => {
+      postBtn.disabled = clearBtn.disabled = true; let ok = 0; const bad = []; const left = [];
+      for (let i = 0; i < files.length; i++) {
+        const x = files[i]; bmsg.textContent = `Posting ${i + 1} of ${files.length}…`;
+        try {
+          const line = (x.line || '').trim() || nice(x.file.name);
+          const path = await db.uploadPhoto(x.file, 1600);
+          const id = await db.createPiece({ kind: 'quote', body: line, said_by: '', source_slug: null, writeup: '', backdrop: 'aged', color: 'yellow', visibility: 'public', status: 'published' });
+          await db.setPieceMedia(id, { photo_path: path, photo_has_text: true, photo_alt: line, featured: (ok === 0 && document.getElementById('bc-feat').checked) || undefined });
+          ok++;
+        } catch (err) { bad.push(`${x.file.name} (${err.message})`); left.push(x); }
+      }
+      files = left; draw(); postBtn.disabled = clearBtn.disabled = false;
+      bmsg.innerHTML = `Posted ${ok} card${ok === 1 ? '' : 's'}.` + (bad.length ? ` These did not post and are still listed so you can try again: ${esc(bad.join('; '))}` : ' All done.');
+      if (ok) toast(`Posted ${ok} quote cards`);
+    };
+  }
   // Import from the Writing Desk: a JSON file of finished pieces, posted as you after a preview.
   const diFile = document.getElementById('di-file'), diList = document.getElementById('di-list'), diMsg = document.getElementById('di-msg');
   const DI_KINDS = ['piece', 'poem', 'line', 'story', 'humor'];
