@@ -216,25 +216,25 @@ function startPick(all) {
   const voted = db.myVotes();
   const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
   const queue = [...shuffle(all.filter((x) => !voted[x.id])), ...shuffle(all.filter((x) => voted[x.id]))];
-  let i = 0, paused = false, elapsed = 0;
+  let i = 0, paused = false, elapsed = 0, flip = Math.random() < 0.5; // flip: show the pair's sides swapped (votes still count for the right piece)
   const STEP = 100, LIMIT = 10000;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const box = document.getElementById('pick');
 
-  const optHtml = (side, p) => `<button type="button" class="pair-opt" data-side="${side}" aria-pressed="false"
-      aria-label="Choose ${side.toUpperCase()}: ${esc(p.photo_alt || label(p))}">${visualHtml(p, { tone: false }) || quoteCardHtml(p)}</button>`;
+  const optHtml = (side, p, pos) => `<button type="button" class="pair-opt" data-side="${side}" aria-pressed="false"
+      aria-label="Choose ${pos}: ${esc(p.photo_alt || label(p))}">${visualHtml(p, { tone: false }) || quoteCardHtml(p)}</button>`;
 
   async function show(pair, results) {
     stopPickTimer();
     const mine = db.myVotes()[pair.id];
     box.innerHTML = `
-      <div class="pair ${mine ? 'voted' : ''}">${optHtml('a', pair.a)}${optHtml('b', pair.b)}<div class="pair-or" aria-hidden="true">or</div></div>
+      <div class="pair ${mine ? 'voted' : ''}">${flip ? optHtml('b', pair.b, 'A') + optHtml('a', pair.a, 'B') : optHtml('a', pair.a, 'A') + optHtml('b', pair.b, 'B')}<div class="pair-or" aria-hidden="true">or</div></div>
       ${mine && results ? (() => {
         const total = results.a + results.b || 1;
         const pct = (n) => Math.round((n / total) * 100);
         const one = (side, n) => `<div class="pair-result"><span>${pct(n)}% chose this${mine === side ? ' (you too)' : ''}</span>
           <span class="bar"><i style="width:${pct(n)}%"></i></span><small>${n} ${n === 1 ? 'vote' : 'votes'}</small></div>`;
-        return `<div class="pair-results">${one('a', results.a)}${one('b', results.b)}</div>`;
+        return `<div class="pair-results">${flip ? one('b', results.b) + one('a', results.a) : one('a', results.a) + one('b', results.b)}</div>`;
       })() : ''}
       ${mine ? `<form class="take" id="take"><label>Why that one?
           <textarea id="take-body" rows="2" maxlength="3000" placeholder="It reminded me of… / I'd pick the other one because…"></textarea></label>
@@ -279,7 +279,7 @@ function startPick(all) {
       }, STEP);
     }
   }
-  async function next() { i = (i + 1) % queue.length; const p = queue[i]; await show(p, db.myVotes()[p.id] ? await db.pairResults(p.id) : null); }
+  async function next() { i = (i + 1) % queue.length; flip = Math.random() < 0.5; const p = queue[i]; await show(p, db.myVotes()[p.id] ? await db.pairResults(p.id) : null); }
   const first = queue[0];
   (async () => show(first, db.myVotes()[first.id] ? await db.pairResults(first.id) : null))();
 }
