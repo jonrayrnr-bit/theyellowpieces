@@ -29,4 +29,4 @@ export const CONTACT_EMAIL = '';
 // Visitor stats. Paste your Cloudflare Web Analytics token between the quotes to turn it on
 // (Cloudflare dashboard > Analytics & Logs > Web Analytics > Add a site > copy the token).
 // It sets no cookies and tracks no individuals. Leave '' to keep stats off.
-export const ANALYTICS_TOKEN = '';
+export const ANALYTICS_TOKEN = 'adf09d77138d48f69f2216eb82c54418';
