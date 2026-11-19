@@ -678,7 +678,7 @@ async function viewAdmin() {
   if (!(await needProfile())) return;
   if (!(await db.isAdmin())) { main.innerHTML = `<p class="empty">This page is for site admins.</p>`; return; }
   document.title = 'Site admin · The Yellow Pieces';
-  const recent = await db.feed({ sort: 'new', limit: 80, includePrivate: true });
+  const recent = await db.feed({ sort: 'new', limit: 300, includePrivate: true });
   const pairList = await db.pairs({ includeInactive: true });
   const opt = (p) => `<option value="${esc(p.id)}">${esc(KINDS[p.kind].name)} · ${esc(excerpt(label(p), 60))}</option>`;
   const thumb = (p) => p.photo_path ? `<img class="thumb" src="${esc(db.photoUrl(p.photo_path))}" alt="">` : `<span class="thumb" aria-hidden="true"></span>`;
@@ -710,17 +710,22 @@ async function viewAdmin() {
       <div id="di-list"></div><div id="di-msg" aria-live="polite"></div>
     </section>
 
-    <section class="paper"><h2 class="section-title">Your pieces</h2><p class="hint">Edit the words or photo of any piece, and choose what's featured. The newest three featured pieces show on the homepage.</p>
-      <ul class="admin-list">${recent.filter((p) => p.status === 'published').slice(0, 40).map((p) => `<li>${thumb(p)}
+    <section class="paper"><h2 class="section-title">Your pieces</h2><p class="hint">Edit the words or photo of any piece, choose what's featured, or delete old versions. The newest three featured pieces show on the homepage.</p>
+      <label for="pl-filter">Find a piece</label><input id="pl-filter" type="search" placeholder="Type a word from the title or text">
+      <ul class="admin-list" id="piece-list">${recent.filter((p) => p.status === 'published').map((p) => `<li data-find="${esc((label(p) + ' ' + (p.title || '') + ' ' + (p.body || '')).toLowerCase().slice(0, 400))}">${thumb(p)}
         <span class="what">${esc(excerpt(label(p), 80))}<small>${esc(KINDS[p.kind].name)} · @${esc(p.author?.username)}</small></span>
         <a class="btn-ghost btn-small" href="#/edit/${esc(p.id)}">Edit</a>
-        <button class="btn-ghost btn-small" type="button" data-feature="${esc(p.id)}" aria-pressed="${!!p.featured}">${p.featured ? '★ Featured' : 'Feature'}</button></li>`).join('')}</ul></section>
+        <button class="btn-ghost btn-small" type="button" data-feature="${esc(p.id)}" aria-pressed="${!!p.featured}">${p.featured ? '★ Featured' : 'Feature'}</button>
+        <button class="link danger" type="button" data-del-piece="${esc(p.id)}" data-photo="${esc(p.photo_path || '')}">Delete</button></li>`).join('')}</ul></section>
 
     <section class="paper"><h2 class="section-title">Pick-one pairs</h2>
       <p class="hint">Pairs work best as a picture against a quote, or two quotes that pull different ways.</p>
-      <form id="pair-form" class="row"><div class="stack"><label for="pa">Left</label><select id="pa">${recent.map(opt).join('')}</select></div>
-        <div class="stack"><label for="pb">Right</label><select id="pb">${recent.map(opt).join('')}</select></div>
-        <div class="actions"><button class="btn" type="submit">Add pair</button></div></form>
+      <form id="pair-form" class="stack">
+        <div class="row">${['a', 'b'].map((k) => `<div class="stack pair-side"><label for="p${k}">${k === 'a' ? 'Left' : 'Right'}</label>
+          <select id="p${k}"><option value="">Choose a piece on the site…</option>${recent.map(opt).join('')}</select>
+          <label for="p${k}-file" class="opt">…or upload a new picture</label><input id="p${k}-file" type="file" accept="image/*"></div>`).join('')}</div>
+        <label class="check"><input type="checkbox" id="p-text"> The words are already in the uploaded picture(s) (a quote card). Shown whole, never cropped.</label>
+        <div class="actions"><button class="btn" type="submit">Add pair</button></div><div id="pair-msg" aria-live="polite"></div></form>
       <ul class="admin-list">${pairList.map((x) => `<li>${thumb(x.a)}${thumb(x.b)}
         <span class="what">${esc(excerpt(label(x.a), 40))} <b>or</b> ${esc(excerpt(label(x.b), 40))}<small>${x.active ? 'Showing' : 'Hidden'}</small></span>
         <button class="btn-ghost btn-small" type="button" data-pair-toggle="${x.id}" data-on="${x.active}">${x.active ? 'Hide' : 'Show'}</button>
@@ -801,10 +806,32 @@ async function viewAdmin() {
     b.disabled = false; }; });
   document.getElementById('pair-form').onsubmit = async (e) => {
     e.preventDefault();
-    const a = document.getElementById('pa').value, b = document.getElementById('pb').value;
-    if (a === b) { toast('Pick two different pieces.'); return; }
-    try { await db.addPair(a, b); toast('Pair added'); route(); } catch (err) { toast(err.message); }
+    const msg = document.getElementById('pair-msg'), btn = e.currentTarget.querySelector('button[type=submit]');
+    const side = async (k) => {
+      const fl = document.getElementById('p' + k + '-file').files[0];
+      if (fl) {
+        const path = await db.uploadPhoto(fl, 1600);
+        const t = fl.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim().slice(0, 140) || 'Picture';
+        const id = await db.createPiece({ kind: 'photo', title: t, body: t, color: 'yellow', visibility: 'public', status: 'published' });
+        await db.setPieceMedia(id, { photo_path: path, photo_has_text: document.getElementById('p-text').checked, photo_alt: t });
+        return id;
+      }
+      return document.getElementById('p' + k).value;
+    };
+    btn.disabled = true; msg.textContent = 'Working…';
+    try {
+      const a = await side('a'), b = await side('b');
+      if (!a || !b) throw new Error('Choose or upload something for both sides.');
+      if (a === b) throw new Error('Pick two different pieces.');
+      await db.addPair(a, b); toast('Pair added'); route();
+    } catch (err) { msg.textContent = err.message; btn.disabled = false; }
   };
+  document.getElementById('pl-filter').oninput = (e) => { const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#piece-list li').forEach((li) => { li.hidden = !!q && !li.dataset.find.includes(q); }); };
+  main.querySelectorAll('[data-del-piece]').forEach((b) => { b.onclick = async () => {
+    if (!confirm('Delete this piece for good? Its comments, votes and any pairs using it go too.')) return;
+    try { await db.deletePiece(b.dataset.delPiece); if (b.dataset.photo) await db.removePhotoFile(b.dataset.photo).catch(() => {}); toast('Deleted'); route(); }
+    catch (err) { toast(err.message); } }; });
   main.querySelectorAll('[data-pair-toggle]').forEach((b) => { b.onclick = async () => {
     try { await db.setPairActive(Number(b.dataset.pairToggle), b.dataset.on !== 'true'); route(); } catch (err) { toast(err.message); } }; });
   main.querySelectorAll('[data-pair-del]').forEach((b) => { b.onclick = async () => {

@@ -22,6 +22,7 @@ phone like an app (a PWA).
 | `supabase/update-2026-10-18-launch.sql` | Launch update: photo storage, featured pieces, pick-one pairs and votes, reply counts, admins |
 | `supabase/update-2026-10-18-admin-edit.sql` | Lets admins edit any piece's words from the site |
 | `supabase/update-2026-11-18-piece-images.sql` | Adds `image_svg` to pieces and an admin-only function to set it (run before using piece images) |
+| `supabase/update-2026-11-19-admin-delete.sql` | Lets admins delete any piece from the Site admin page |
 | `demo/photos/` | J. Ray's starter photos, used only in demo mode |
 | `manifest.webmanifest`, `sw.js`, `icons/` | What lets it install as a phone app |
 
