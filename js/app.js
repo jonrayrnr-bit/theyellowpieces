@@ -119,9 +119,32 @@ function visualHtml(p, opts = {}) {
 const label = (p) => plain(p.title) || excerpt(p.body, 60);
 const labelHtml = (p) => (p.title ? ttl(p.title) : esc(excerpt(p.body, 60)));
 
+// ---------- emoji reactions ----------
+const REACTIONS = [
+  { key: 'smile', emoji: '😊', label: 'Smile' }, { key: 'laugh', emoji: '😂', label: 'Laughing' },
+  { key: 'cry', emoji: '😢', label: 'Sad' }, { key: 'love', emoji: '🥰', label: 'Love' },
+  { key: 'mindblown', emoji: '🤯', label: 'Mind blown' }, { key: 'uneasy', emoji: '😬', label: 'Uneasy' },
+];
+let rxState = { ok: false, counts: {}, mine: {} };
+async function loadReactions(ids) {
+  const r = await db.reactionsFor(ids);
+  rxState = { ok: r.ok, counts: { ...rxState.counts, ...r.counts }, mine: { ...rxState.mine, ...r.mine } };
+  ids.forEach((id) => { if (!r.counts[id]) delete rxState.counts[id]; if (!r.mine[id]) delete rxState.mine[id]; });
+}
+function rxHtml(id, open = false) {
+  if (!rxState.ok) return '';
+  const counts = rxState.counts[id] || {}, mine = rxState.mine[id];
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const face = REACTIONS.find((x) => x.key === mine);
+  return `<span class="rx" data-rx-wrap="${esc(id)}">
+    <button class="rx-btn ${mine ? 'on' : ''}" type="button" data-rx-open="${esc(id)}" aria-haspopup="true" aria-expanded="${open}" aria-label="${face ? `You reacted: ${face.label}. Change reaction` : 'React with an emoji'}">
+      <span aria-hidden="true">${face ? face.emoji : '☺'}</span>${total ? `<b>${total}</b>` : ''}</button>
+    <span class="rx-pop" role="group" aria-label="Choose a reaction" ${open ? '' : 'hidden'}>${REACTIONS.map((x) => `<button type="button" class="${mine === x.key ? 'on' : ''}" data-rx="${esc(id)}" data-rx-key="${x.key}" aria-pressed="${mine === x.key}" aria-label="${x.label}" title="${x.label}"><span aria-hidden="true">${x.emoji}</span>${counts[x.key] ? `<b>${counts[x.key]}</b>` : ''}</button>`).join('')}</span></span>`;
+}
+
 // ---------- shared pieces ----------
 function stuckBtn(p, on) {
-  return `<button class="stuck ${on ? 'on' : ''}" data-stuck="${esc(p.id)}" aria-pressed="${on}" aria-label="This stuck with me">
+  return `<button class="stuck ${on ? 'on' : ''}" data-stuck="${esc(p.id)}" aria-pressed="${on}" aria-label="This stuck with me" title="This stuck with me">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16l-7-4-7 4z"/></svg><span>${p.stuck_count}</span></button>`;
 }
 function card(p, stuck) {
@@ -141,7 +164,7 @@ function card(p, stuck) {
   }
   return `<article class="card sheet-${esc(p.kind)} ${p.image_svg && !p.photo_path && p.kind !== 'quote' ? 'has-art' : ''}">
     ${inner}
-    <footer>${stuckBtn(p, stuck.has(p.id))}
+    <footer>${stuckBtn(p, stuck.has(p.id))}${rxHtml(p.id)}
       <a class="replies" href="#/p/${esc(p.id)}#responses">${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</a>
       <span class="meta">@${esc(p.author?.username)} · ${esc(k.name)}</span>
       <span class="dot dot-${esc(p.color)}" title="${esc(p.color)} highlight"></span></footer>
@@ -149,7 +172,8 @@ function card(p, stuck) {
 }
 async function cards(list, empty = 'Nothing here yet. Be the first.', bare = false) {
   if (!list.length) return `<p class="empty">${esc(empty)}</p>`;
-  const st = await db.myStuck(list.map((p) => p.id));
+  const ids = list.map((p) => p.id);
+  const [st] = await Promise.all([db.myStuck(ids), loadReactions(ids)]);
   return `<div class="grid">${list.map((p) => card(p, st, bare)).join('')}</div>`;
 }
 async function colorStrip(active) {
@@ -363,7 +387,7 @@ async function viewColor(slug) {
 async function viewPiece(id) {
   const p = await db.getPiece(id);
   if (!p) { main.innerHTML = `<p class="empty">That piece isn't here. It may be private or deleted.</p>`; return; }
-  const [st, user, comments, hl, cs, admin] = await Promise.all([db.myStuck([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors(), db.isAdmin()]);
+  const [st, , user, comments, hl, cs, admin] = await Promise.all([db.myStuck([p.id]), loadReactions([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors(), db.isAdmin()]);
   const mine = user && user.id === p.author_id;
   const k = KINDS[p.kind];
   document.title = `${plain(p.title) || excerpt(p.body, 40)} · The Yellow Pieces`;
@@ -395,7 +419,7 @@ async function viewPiece(id) {
       ${content}
       ${byline(p)}
       <div class="actions">
-        ${stuckBtn(p, st.has(p.id))}
+        ${stuckBtn(p, st.has(p.id))}${rxHtml(p.id)}
         ${p.kind === 'quote' && !p.photo_has_text ? `<button class="btn-ghost" data-download>Save as image</button>` : ''}
         <button class="btn-ghost" data-share>Share</button>
         ${mine && p.status === 'draft' ? `<button class="btn-ghost" data-publish>Publish</button>` : ''}
@@ -1073,6 +1097,27 @@ async function renderAccount() {
   const so = document.getElementById('signout');
   if (so) so.onclick = async () => { await db.signOut(); renderAccount(); go('#/'); };
 }
+
+document.addEventListener('click', async (e) => {
+  const open = e.target.closest('[data-rx-open]'), pick = e.target.closest('[data-rx]');
+  document.querySelectorAll('.rx-pop:not([hidden])').forEach((pop) => {
+    if (open && pop.parentElement === open.parentElement) return;
+    pop.hidden = true; pop.parentElement.querySelector('.rx-btn')?.setAttribute('aria-expanded', 'false'); });
+  if (open) { const pop = open.parentElement.querySelector('.rx-pop'); pop.hidden = !pop.hidden; open.setAttribute('aria-expanded', String(!pop.hidden)); return; }
+  if (!pick) return;
+  if (!(await needProfile())) return;
+  const id = pick.dataset.rx, key = pick.dataset.rxKey, wrap = pick.closest('[data-rx-wrap]');
+  const was = rxState.mine[id], next = was === key ? null : key;
+  pick.disabled = true;
+  try {
+    await db.setReaction(id, next);
+    const c = (rxState.counts[id] ||= {});
+    if (was) c[was] = Math.max((c[was] || 1) - 1, 0);
+    if (next) { c[next] = (c[next] || 0) + 1; rxState.mine[id] = next; } else delete rxState.mine[id];
+    wrap.outerHTML = rxHtml(id);
+  } catch (err) { toast(err.message); pick.disabled = false; }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.rx-pop:not([hidden])').forEach((pop) => { pop.hidden = true; pop.parentElement.querySelector('.rx-btn')?.setAttribute('aria-expanded', 'false'); pop.parentElement.querySelector('.rx-btn')?.focus(); }); });
 
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-stuck]');

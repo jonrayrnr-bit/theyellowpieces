@@ -211,6 +211,36 @@ export async function setStuck(id, on) {
   else check(await sb.from('stuck').delete().eq('piece_id', id).eq('user_id', u.id));
 }
 
+// ---------- Emoji reactions ----------
+// One reaction per person per piece. If the reactions table isn't set up yet, these quietly report "unavailable".
+export async function reactionsFor(ids) {
+  const out = { ok: true, counts: {}, mine: {} };
+  if (!ids.length) return out;
+  const u = await currentUser();
+  if (mode === 'demo') {
+    demo.reactions.filter((r) => ids.includes(r.piece_id)).forEach((r) => {
+      (out.counts[r.piece_id] ||= {})[r.emoji] = (out.counts[r.piece_id][r.emoji] || 0) + 1;
+      if (u && r.user_id === u.id) out.mine[r.piece_id] = r.emoji; });
+    return out;
+  }
+  try {
+    const rows = check(await sb.rpc('reaction_counts', { ids }));
+    rows.forEach((r) => { (out.counts[r.piece_id] ||= {})[r.emoji] = Number(r.n); });
+    if (u) check(await sb.from('reactions').select('piece_id,emoji').eq('user_id', u.id).in('piece_id', ids)).forEach((r) => { out.mine[r.piece_id] = r.emoji; });
+  } catch { out.ok = false; }
+  return out;
+}
+export async function setReaction(id, emoji) {   // emoji = null removes it
+  const u = await currentUser();
+  if (mode === 'demo') {
+    demo.reactions = demo.reactions.filter((r) => !(r.user_id === u.id && r.piece_id === id));
+    if (emoji) demo.reactions.push({ user_id: u.id, piece_id: id, emoji });
+    return;
+  }
+  if (emoji) check(await sb.from('reactions').upsert({ piece_id: id, user_id: u.id, emoji }, { onConflict: 'user_id,piece_id' }));
+  else check(await sb.from('reactions').delete().eq('piece_id', id).eq('user_id', u.id));
+}
+
 // ---------- Readers' highlights ----------
 // Returns { counts: {color: n}, mine: Set(color) } for one piece.
 export async function highlightsFor(pieceId) {
@@ -398,7 +428,7 @@ export async function removePair(id) {
 
 // ---------- Demo store ----------
 const demo = {
-  user: null, profiles: [], colors: [], sources: [], pieces: [], stuck: [], highlights: [], comments: [], pairs: [], votes: [],
+  user: null, profiles: [], colors: [], sources: [], pieces: [], stuck: [], reactions: [], highlights: [], comments: [], pairs: [], votes: [],
   load() { Object.assign(this, structuredClone(demoSeed)); this.pieces.forEach((p) => { p.status ||= 'published'; p.visibility ||= 'public'; p.started_at ||= ''; p.aiming_for ||= ''; }); },
   signIn(email) { this.user = { id: 'demo-user-' + email.toLowerCase(), email }; },
   hydrate(p) {

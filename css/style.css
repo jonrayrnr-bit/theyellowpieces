@@ -382,3 +382,21 @@ mark.hlw { --hlc: var(--hl-yellow); background: linear-gradient(104deg, transpar
 .dropzone b { font-size: 1.1rem; color: var(--text); } .dropzone span { font-size: 0.95rem; color: var(--text-soft); }
 .dropzone.over, .dropzone:hover { border-color: var(--lemon); background: rgba(242, 210, 74, 0.08); }
 #batch-cards .admin-list input { width: 100%; }
+
+/* Emoji reactions */
+.rx { position: relative; display: inline-flex; }
+.rx-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: 1px solid var(--line-strong); color: var(--text); font: 700 0.95rem var(--ui); }
+.rx-btn > span { font-size: 1.15rem; line-height: 1; }
+.rx-btn:hover, .rx-btn[aria-expanded="true"] { border-color: var(--lemon); }
+.rx-btn.on { border-color: var(--lemon); background: rgba(242, 210, 74, 0.14); }
+.rx-pop { position: absolute; z-index: 20; left: 0; bottom: calc(100% + 8px); display: flex; gap: 2px; padding: 6px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
+.rx-pop[hidden] { display: none; }
+.rx-pop button { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 44px; min-height: 48px; padding: 2px 4px;
+  border: 0; border-radius: 14px; background: transparent; cursor: pointer; color: var(--text-soft); font: 700 0.72rem var(--ui); }
+.rx-pop button span { font-size: 1.55rem; line-height: 1.1; transition: transform 0.12s; }
+.rx-pop button:hover span, .rx-pop button:focus-visible span { transform: scale(1.25); }
+.rx-pop button.on { background: rgba(242, 210, 74, 0.2); color: var(--text); }
+@media (max-width: 420px) { .rx-pop { left: auto; right: -40px; } }
+@media (prefers-reduced-motion: reduce) { .rx-pop button span { transition: none; } }
