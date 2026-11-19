@@ -157,6 +157,12 @@ export async function getPiece(id) {
   }
   return check(await sb.from('pieces').select(PIECE_SELECT).eq('id', id).maybeSingle());
 }
+// Email list signup from the homepage (anyone can add an address; only admins can read the list).
+export async function subscribe(email) {
+  if (mode === 'demo') return;
+  const { error } = await sb.from('subscribers').insert({ email: email.toLowerCase() });
+  if (error && error.code !== '23505') throw new Error(error.message); // already subscribed counts as success
+}
 export async function createPiece(piece) {
   const u = await currentUser();
   if (mode === 'demo') {

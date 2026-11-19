@@ -350,3 +350,30 @@ body[data-tiles="beside"] .card.has-art .arttile:hover .art { transform: none; }
 .fmt-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .fmt-bar .btn-small { min-width: 40px; font-size: 1.05rem; }
 .prose strong { font-weight: 700; } .prose em { font-style: italic; }
+
+/* intro line, highlighted title word, From strip, signup */
+.home > .intro { margin-top: 0; }
+.home > .intro + section { margin-top: 36px; }
+.intro-line { font: 1.3rem/1.5 var(--serif); color: var(--text-read); margin: 0; max-width: 62ch; }
+.intro-line b { color: var(--text); font-weight: 500; }
+mark.hlw { --hlc: var(--hl-yellow); background: linear-gradient(104deg, transparent 0.6%, var(--hlc) 2%, var(--hlc) 96%, transparent 98%) 0 60% / 100% 90% no-repeat; color: #15181C; padding: 0 0.18em; margin: 0 -0.08em; }
+[class*="hl-"] mark.hlw { --hlc: inherit; }
+.hl-yellow mark.hlw { --hlc: var(--hl-yellow); } .hl-blue mark.hlw { --hlc: var(--hl-blue); } .hl-green mark.hlw { --hlc: var(--hl-green); }
+.hl-red mark.hlw { --hlc: var(--hl-red); } .hl-orange mark.hlw { --hlc: var(--hl-orange); } .hl-purple mark.hlw { --hlc: var(--hl-purple); } .hl-gray mark.hlw { --hlc: var(--hl-gray); }
+.from-card, .signup-card { display: flex; flex-wrap: wrap; gap: 24px 36px; align-items: center; padding: 32px; border-radius: var(--radius); background: var(--surface); }
+.from-card > div:last-child { flex: 1 1 340px; }
+.from-card p { font: 1.12rem/1.6 var(--serif); color: var(--text-read); margin: 10px 0 0; }
+.from-photo { flex: 0 0 auto; width: 132px; height: 132px; border-radius: 50%; overflow: hidden; background: var(--hl-yellow); display: grid; place-items: center; }
+.from-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.from-photo .ph { font: 500 2.2rem var(--serif); color: #15181C; }
+.signup-card > div:first-child { flex: 1 1 300px; }
+.signup-card p { font: 1.05rem/1.55 var(--serif); color: var(--text-read); margin: 8px 0 0; }
+.signup-form { flex: 1 1 320px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.signup-form input { flex: 1 1 220px; min-width: 0; }
+.signup-form .hint { flex-basis: 100%; margin: 0; }
+.signup-thanks { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.from-card, .signup-card { text-align: left; }
+.from-card h2 { color: var(--text); }
+.from-card .sec-all { display: inline-block; margin-top: 14px; }

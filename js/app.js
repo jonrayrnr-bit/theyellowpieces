@@ -1,5 +1,6 @@
 import * as db from './data.js';
 import { BACKDROPS, quoteCardHtml, quoteCardPng } from './card.js';
+import { ABOUT } from './config.js';
 
 const main = document.getElementById('main');
 const accountEl = document.getElementById('account');
@@ -31,8 +32,20 @@ const ago = (iso) => {
 };
 const params = () => new URLSearchParams(location.hash.split('#')[1]?.split('?')[1] || '');
 const go = (hash) => { location.hash = hash; };
-const plain = (s) => String(s ?? '').replace(/<\/?(b|strong|i|em)>/gi, '').replace(/\*\*([^*]+?)\*\*/g, '$1').replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1$2');
+const plain = (s) => String(s ?? '').replace(/==([^=]+?)==/g, '$1').replace(/<\/?(b|strong|i|em)>/gi, '').replace(/\*\*([^*]+?)\*\*/g, '$1').replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1$2');
 const excerpt = (s, n) => { s = plain(s); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s; };
+// Highlighted word in a title: ==word== shows with a yellow marker swipe.
+const ttl = (s) => esc(s).replace(/==([^=]+?)==/g, '<mark class="hlw">$1</mark>');
+const hasHl = (s) => /==[^=]+?==/.test(s || '');
+// Wrap the selected text in a text box with a marker (or remove it if already wrapped).
+function wrapSel(t, m) {
+  if (!t) return;
+  const { selectionStart: a, selectionEnd: z, value: v } = t, n = m.length;
+  if (a === z && m === '==') { toast('Select the word to highlight first'); return; }
+  if (v.slice(a - n, a) === m && v.slice(z, z + n) === m) { t.value = v.slice(0, a - n) + v.slice(a, z) + v.slice(z + n); t.setSelectionRange(a - n, z - n); }
+  else { t.value = v.slice(0, a) + m + v.slice(a, z) + m + v.slice(z); t.setSelectionRange(a + n, z + n); }
+  t.focus();
+}
 // Bold and italic: **bold**, *italic* (also <b>/<i> from pasted or exported text). Everything else stays escaped plain text.
 const rich = (s) => esc(s)
   .replace(/&lt;(b|strong)&gt;([\s\S]*?)&lt;\/\1&gt;/gi, '<strong>$2</strong>')
@@ -103,7 +116,8 @@ function visualHtml(p, opts = {}) {
   if (p.image_svg) return `<div class="artvis">${artImg(p)}</div>`;
   return '';
 }
-const label = (p) => p.title || excerpt(p.body, 60);
+const label = (p) => plain(p.title) || excerpt(p.body, 60);
+const labelHtml = (p) => (p.title ? ttl(p.title) : esc(excerpt(p.body, 60)));
 
 // ---------- shared pieces ----------
 function stuckBtn(p, on) {
@@ -119,10 +133,10 @@ function card(p, stuck) {
       ${p.writeup ? `<p class="writeup-ex">${esc(excerpt(p.writeup, 140))}</p>` : ''}`;
   } else {
     inner = p.image_svg && !p.photo_path
-      ? `<a class="arttile" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${artImg(p)}<span class="arttitle">${esc(label(p))}</span></a>
+      ? `<a class="arttile" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${artImg(p)}<span class="arttitle">${labelHtml(p)}</span></a>
       <p class="body-ex">${esc(excerpt(p.body, 220))}</p>`
       : `${p.photo_path ? `<a href="#/p/${esc(p.id)}" tabindex="-1" aria-hidden="true"><div class="media-box ${p.kind === 'photo' ? '' : 'wide'}">${photoHtml(p)}</div></a>` : ''}
-      ${bare && p.kind === 'photo' ? '' : `<h3><a href="#/p/${esc(p.id)}">${esc(label(p))}</a></h3>`}
+      ${bare && p.kind === 'photo' ? '' : `<h3><a href="#/p/${esc(p.id)}">${labelHtml(p)}</a></h3>`}
       ${p.kind === 'photo' ? (bare ? '' : p.body ? `<p class="writeup-ex">${esc(excerpt(p.body, 140))}</p>` : '') : `<p class="body-ex">${esc(excerpt(p.body, 220))}</p>`}`;
   }
   return `<article class="card sheet-${esc(p.kind)} ${p.image_svg && !p.photo_path && p.kind !== 'quote' ? 'has-art' : ''}">
@@ -169,15 +183,17 @@ async function viewHome() {
     const vis = visualHtml(p);
     const kicker = { quote: 'Quote', piece: 'Piece', poem: 'Poem', line: 'Line', story: 'Story', humor: 'Humor', sketch: 'Sketch', photo: 'Picture' }[p.kind];
     if (!vis) return `<a class="tile text ${big ? 'big' : ''}" href="#/p/${esc(p.id)}"><p class="kicker">${kicker}</p>
-      <p class="lineq">${esc(excerpt(p.body, big ? 260 : 120))}</p><b>${esc(p.title || '')}</b>
+      <p class="lineq">${esc(excerpt(p.body, big ? 260 : 120))}</p><b>${ttl(p.title || '')}</b>
       <span class="acts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} replies</span></span></a>`;
     const showPanel = !(p.kind === 'quote');
     return `<a class="tile ${big ? 'big' : ''}" href="#/p/${esc(p.id)}" aria-label="${esc(label(p))}">${vis}
-      ${showPanel ? `<span class="panel"><span class="kicker">${kicker}</span><b>${esc(label(p))}</b>${p.title && p.kind !== 'photo' ? `<q>${esc(excerpt(p.body, big ? 140 : 80))}</q>` : ''}
+      ${showPanel ? `<span class="panel"><span class="kicker">${kicker}</span><b>${labelHtml(p)}</b>${p.title && p.kind !== 'photo' ? `<q>${esc(excerpt(p.body, big ? 140 : 80))}</q>` : ''}
         <span class="acts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} replies</span></span></span>` : ''}</a>`;
   };
 
   main.innerHTML = `<div class="home">
+    <section class="intro"><p class="intro-line"><b>Highlight the best words in your life.</b> Great lines, words of wisdom, and the stories behind them: the pieces worth passing down.</p></section>
+
     ${feat.length ? `<section aria-labelledby="feat-h"><div class="sec-head"><div><p class="kicker">Featured</p><h2 class="section-title" id="feat-h">Yellow pieces to start with</h2></div>
       <p class="sec-blurb">Lines and stories from life. Read one, then take a side.</p></div>
       <div class="featured">${tile(feat[0], true)}${feat.length > 1 ? `<div class="featured-side">${feat.slice(1).map((p) => tile(p, false)).join('')}</div>` : ''}</div>
@@ -187,18 +203,29 @@ async function viewHome() {
       <div class="pick-head"><h1 id="pick-h">Which one speaks to you?</h1>
         <p class="lede">Two yellow pieces, side by side. Pick one, then say why. What comes to mind?</p></div>
       <div id="pick"></div>
-    </section>` : `<section class="pick"><div class="pick-head"><h1>Highlight the best words in your life.</h1>
-      <p class="lede">Great lines, words of wisdom, and the stories behind them: the pieces worth passing down.</p></div></section>`}
+    </section>` : ''}
 
     ${trending.length ? `<section aria-labelledby="trend-h"><div class="sec-head"><div><p class="kicker">Trending</p><h2 class="section-title" id="trend-h">Join the conversation</h2></div>
       <p class="sec-blurb">See what's being said: the pieces drawing the most replies this week.</p></div>
       <ol class="trend">${trending.map((p, i) => `<li><a href="#/p/${esc(p.id)}">
         ${visualHtml(p) ? `<span class="trend-vis">${visualHtml(p)}</span>` : ''}
         <span class="top"><span>${esc(KINDS[p.kind].name)}</span><span>#${i + 1}</span></span>
-        <span class="line">${p.kind === 'quote' ? `“${esc(excerpt(p.body, 140))}”` : esc(p.title ? p.title + ' — ' + excerpt(p.body, 90) : excerpt(p.body, 140))}</span>
+        <span class="line">${p.kind === 'quote' ? (visualHtml(p) ? '' : `“${esc(excerpt(p.body, 140))}”`) : (p.title ? ttl(p.title) + ' — ' + esc(excerpt(p.body, 90)) : esc(excerpt(p.body, 140)))}</span>
         <span class="by">@${esc(p.author?.username)}</span>
         <span class="counts"><span>${p.stuck_count} stuck with it</span><span>${p.comment_count || 0} ${p.comment_count === 1 ? 'reply' : 'replies'}</span></span></a></li>`).join('')}</ol>
     </section>` : ''}
+
+    <section class="from" aria-labelledby="from-h"><div class="from-card">
+      <div class="from-photo">${ABOUT.photo ? `<img src="${esc(ABOUT.photo)}" alt="${esc(ABOUT.name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc(ABOUT.initials)}'}))">` : `<span class="ph">${esc(ABOUT.initials)}</span>`}</div>
+      <div><p class="kicker">From ${esc(ABOUT.name)}</p><h2 class="section-title" id="from-h">${esc(ABOUT.headline)}</h2>
+        ${ABOUT.bio.map((t) => `<p>${esc(t)}</p>`).join('')}
+        <a class="sec-all" href="#/about">Why yellow? →</a></div></div></section>
+
+    <section class="signup" aria-labelledby="signup-h"><div class="signup-card">
+      <div><p class="kicker">Stay close</p><h2 class="section-title" id="signup-h">${esc(ABOUT.signupHeadline)}</h2><p>${esc(ABOUT.signupLine)}</p></div>
+      <form id="subscribe" class="signup-form" novalidate><label class="sr" for="sub-email">Email</label>
+        <input id="sub-email" type="email" autocomplete="email" required maxlength="200" placeholder="you@example.com">
+        <button class="btn" type="submit">Send me yellow pieces</button><p class="hint" id="sub-msg" aria-live="polite"></p></form></div></section>
 
     <section><div class="band"><div><h2>Your turn. What's a line you still carry?</h2>
       <p>A family motto, something a grandparent said, words that came in handy at a surprising time. Share it, and tell us who said it and why it stuck.</p></div>
@@ -218,6 +245,15 @@ async function viewHome() {
       <a class="btn-ghost" href="#/learn">Take a look →</a></div></section>
   </div>`;
   if (pairList.length) startPick(pairList);
+  const sf = document.getElementById('subscribe');
+  if (sf) sf.onsubmit = async (e) => {
+    e.preventDefault();
+    const em = document.getElementById('sub-email').value.trim(), msg = document.getElementById('sub-msg');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { msg.textContent = 'That email doesn\'t look quite right.'; return; }
+    const b = sf.querySelector('button'); b.disabled = true;
+    try { await db.subscribe(em); sf.innerHTML = '<p class="signup-thanks"><b>You\'re on the list.</b> Thanks for being here.</p>'; }
+    catch (err) { msg.textContent = 'Couldn\'t sign you up just now. Please try again.'; b.disabled = false; }
+  };
 }
 
 // ---------- pick one ----------
@@ -330,7 +366,7 @@ async function viewPiece(id) {
   const [st, user, comments, hl, cs, admin] = await Promise.all([db.myStuck([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors(), db.isAdmin()]);
   const mine = user && user.id === p.author_id;
   const k = KINDS[p.kind];
-  document.title = `${p.title || excerpt(p.body, 40)} · The Yellow Pieces`;
+  document.title = `${plain(p.title) || excerpt(p.body, 40)} · The Yellow Pieces`;
   let content;
   if (p.kind === 'quote' && p.photo_has_text) {
     content = `<div class="hero-media"><div class="media-box">${photoHtml(p, { tone: false })}</div></div>
@@ -341,16 +377,16 @@ async function viewPiece(id) {
       ${p.source ? `<p class="from">Filed under <b>${esc(p.source.name)}</b></p>` : ''}
       ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${rich(p.writeup)}</p>` : ''}`;
   } else if (p.kind === 'sketch') {
-    content = `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>
+    content = `<h1 class="sheet-title">${(hasHl(p.title) ? `<span class="hl-${esc(p.color)}">${ttl(p.title)}</span>` : `<span class="hl hl-${esc(p.color)}">${esc(p.title)}</span>`)}</h1>
       ${p.aiming_for ? `<p class="aim"><b>What I'm going for:</b> ${esc(p.aiming_for)}</p>` : ''}
       <h2 class="sub">Where I'm at now</h2><pre class="scene">${rich(p.body)}</pre>
       ${p.started_at ? `<details><summary>Where I started</summary><pre class="scene">${esc(p.started_at)}</pre></details>` : ''}`;
   } else if (p.kind === 'photo') {
     content = `<div class="hero-media"><div class="media-box" style="aspect-ratio:auto"><img src="${esc(db.photoUrl(p.photo_path))}" alt="${esc(p.photo_alt)}" style="display:block;width:100%"></div></div>
-      <h1 class="sheet-title">${esc(p.title)}</h1>${p.body ? `<p class="prose">${rich(p.body)}</p>` : ''}`;
+      <h1 class="sheet-title">${ttl(p.title)}</h1>${p.body ? `<p class="prose">${rich(p.body)}</p>` : ''}`;
   } else {
     content = `${p.photo_path ? `<div class="hero-media"><div class="media-box wide">${photoHtml(p, { tone: false })}</div></div>` : ''}
-      ${p.title ? `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>` : ''}
+      ${p.title ? `<h1 class="sheet-title">${(hasHl(p.title) ? `<span class="hl-${esc(p.color)}">${ttl(p.title)}</span>` : `<span class="hl hl-${esc(p.color)}">${esc(p.title)}</span>`)}</h1>` : ''}
       <div class="prose ${p.kind === 'piece' || p.kind === 'poem' ? 'verse' : ''}">${rich(p.body)}</div>`;
   }
   main.innerHTML = `
@@ -507,6 +543,12 @@ async function viewShare(kind) {
     </form>`;
 
   const f = document.getElementById('share');
+  { const ti = f.querySelector('#f-title');
+    if (ti) { const bar = document.createElement('div'); bar.className = 'fmt-bar';
+      bar.innerHTML = '<button type="button" class="btn-ghost btn-small" title="Highlight the selected word in the title"><mark class="hlw">Highlight</mark></button><span class="hint">Select a word in the title, then tap Highlight.</span>';
+      bar.querySelector('button').addEventListener('mousedown', (e) => e.preventDefault());
+      bar.querySelector('button').addEventListener('click', () => wrapSel(ti, '=='));
+      ti.after(bar); } }
   const val = (id) => (f.querySelector('#' + id)?.value || '').trim();
   const meaning = () => {
     const sel = f.querySelector('input[name=color]:checked').value;
@@ -781,7 +823,7 @@ async function viewAdmin() {
     diList.innerHTML = `<ul class="admin-list">${items.map((p, i) => { const dup = p.title && have.has(p.title.toLowerCase()); const ex = dup ? byTitle.get(p.title.toLowerCase()) : null;
       const addImg = ex && p.image_svg && ex.image_svg !== p.image_svg;
       return `<li>
-      <label class="check"><input type="checkbox" data-di="${i}" ${dup ? '' : 'checked'}> <span class="what">${p.image_svg ? `<img class="import-art" src="${esc(svgUri(p.image_svg))}" alt="">` : ''}${esc(p.title || excerpt(p.body, 60))}<small>${esc(KINDS[p.kind].name)} · ${esc(p.color)} · ${p.body.split(/\s+/).length} words${p.image_svg ? ' · with picture' : ''}${dup ? ' · already on the site, unticked' : ''}</small></span></label>
+      <label class="check"><input type="checkbox" data-di="${i}" ${dup ? '' : 'checked'}> <span class="what">${p.image_svg ? `<img class="import-art" src="${esc(svgUri(p.image_svg))}" alt="">` : ''}${esc(plain(p.title) || excerpt(p.body, 60))}<small>${esc(KINDS[p.kind].name)} · ${esc(p.color)} · ${p.body.split(/\s+/).length} words${p.image_svg ? ' · with picture' : ''}${dup ? ' · already on the site, unticked' : ''}</small></span></label>
       ${addImg ? `<label class="check"><input type="checkbox" data-di-img="${i}" checked> <span class="what"><small>${ex.image_svg ? 'Replace' : 'Add'} the picture on the existing piece</small></span></label>` : ''}</li>`; }).join('')}</ul>
       <div class="actions"><button class="btn" type="button" id="di-post">Post ticked pieces</button></div>`;
     document.getElementById('di-post').onclick = async (e) => {
@@ -863,7 +905,7 @@ async function viewEdit(id) {
   main.innerHTML = `<form id="edit" class="sheet paper stack">
     <p class="kicker">${esc(k.name)} · @${esc(p.author?.username)}</p>
     <h1 class="sheet-title">Edit</h1>
-    ${p.kind !== 'quote' ? field('e-title', 'Title', p.title) : ''}
+    ${p.kind !== 'quote' ? field('e-title', 'Title', p.title, { hint: '(select a word, then tap Highlight)' }) + `<div class="fmt-bar"><button type="button" class="btn-ghost btn-small" data-hl="e-title" title="Highlight the selected word in the title"><mark class="hlw">Highlight</mark></button></div>` : ''}
     <div class="fmt-bar" role="toolbar" aria-label="Text formatting"><button type="button" class="btn-ghost btn-small" data-fmt="**" title="Bold (Ctrl+B)" aria-label="Bold"><b>B</b></button><button type="button" class="btn-ghost btn-small" data-fmt="*" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button><span class="hint">Select words, then tap B or I. Saved as **bold** and *italic*.</span></div>
     ${field('e-body', p.kind === 'quote' ? 'The line' : p.kind === 'photo' ? 'Caption' : p.kind === 'sketch' ? 'Where I\'m at now' : 'The words', p.body, { area: true, rows: p.kind === 'quote' || p.kind === 'photo' ? 3 : 14, max: p.kind === 'quote' ? 400 : 20000 })}
     ${p.kind === 'quote' ? `<div class="row"><div class="stack">${field('e-said', 'Who said it', p.said_by)}</div>
@@ -900,13 +942,8 @@ async function viewEdit(id) {
   // Bold / Italic: wrap the selection in the textarea you last used (or unwrap if already wrapped).
   let lastTa = f.querySelector('#e-body');
   f.querySelectorAll('textarea').forEach((t) => t.addEventListener('focus', () => { lastTa = t; }));
-  const wrap = (m) => {
-    const t = lastTa; if (!t) return;
-    const { selectionStart: a, selectionEnd: z, value: v } = t, n = m.length;
-    if (v.slice(a - n, a) === m && v.slice(z, z + n) === m) { t.value = v.slice(0, a - n) + v.slice(a, z) + v.slice(z + n); t.setSelectionRange(a - n, z - n); }
-    else { t.value = v.slice(0, a) + m + v.slice(a, z) + m + v.slice(z); t.setSelectionRange(a + n, z + n); }
-    t.focus();
-  };
+  const wrap = (m) => wrapSel(lastTa, m);
+  f.querySelectorAll('[data-hl]').forEach((b) => { b.addEventListener('mousedown', (e) => e.preventDefault()); b.addEventListener('click', () => wrapSel(f.querySelector('#' + b.dataset.hl), '==')); });
   f.querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()) || b.addEventListener('click', () => wrap(b.dataset.fmt)));
   f.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.target.tagName === 'TEXTAREA' && ['b', 'i'].includes(e.key.toLowerCase())) { e.preventDefault(); lastTa = e.target; wrap(e.key.toLowerCase() === 'b' ? '**' : '*'); } });
   let prepared = null; // { blob, width, height, origWidth, origHeight }
