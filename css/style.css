@@ -364,7 +364,7 @@ mark.hlw { --hlc: var(--hl-yellow); background: linear-gradient(104deg, transpar
 .from-card > div:last-child { flex: 1 1 340px; }
 .from-card p { font: 1.12rem/1.6 var(--serif); color: var(--text-read); margin: 10px 0 0; }
 .from-photo { flex: 0 0 auto; width: 132px; height: 132px; border-radius: 50%; overflow: hidden; background: var(--hl-yellow); display: grid; place-items: center; }
-.from-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.from-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; display: block; }
 .from-photo .ph { font: 500 2.2rem var(--serif); color: #15181C; }
 .signup-card > div:first-child { flex: 1 1 300px; }
 .signup-card p { font: 1.05rem/1.55 var(--serif); color: var(--text-read); margin: 8px 0 0; }
