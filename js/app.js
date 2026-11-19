@@ -301,7 +301,7 @@ async function viewSection(kind) {
   const tab = (s, label) => `<a href="#/${k.slug}?sort=${s}" ${sort === s ? 'aria-current="page"' : ''}>${label}</a>`;
   main.innerHTML = `
     <header class="page-head">
-      <h1>${kind === 'sketch' ? 'Sketches<sup>2</sup>' : esc(k.name)}</h1>
+      <h1>${esc(k.name)}</h1>
       <p class="lede">${esc(k.blurb)}</p>
       <div class="head-row"><nav class="tabs" aria-label="Sort">${tab('new', 'Newest')}${tab('hot', 'Trending')}${tab('top', 'Most stuck')}</nav>
         <a class="btn" href="#/share/${kind}">${esc(k.cta)}</a></div>
@@ -435,7 +435,7 @@ async function viewShareChooser() {
   main.innerHTML = `
     <header class="page-head"><h1>Share a yellow piece</h1><p class="lede">What would you like to pass along?</p></header>
     <ul class="choices">${Object.entries(KINDS).filter(([kind]) => kind !== 'photo' || admin).map(([kind, k]) => `
-      <li><a class="paper choice" href="${kind === 'photo' ? '#/admin' : '#/share/' + kind}"><b>${kind === 'sketch' ? 'Sketches<sup>2</sup>' : esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
+      <li><a class="paper choice" href="${kind === 'photo' ? '#/admin' : '#/share/' + kind}"><b>${esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
     </ul>`;
 }
 
