@@ -342,3 +342,11 @@ body[data-tiles="beside"] .card.has-art .arttile:hover .art { transform: none; }
 .piece-bg { position: fixed; inset: 0; z-index: -1; background-size: cover; background-position: center; background-repeat: no-repeat; opacity: 0.14; pointer-events: none; }
 .paper.has-bg { background: color-mix(in srgb, var(--surface) 62%, transparent); backdrop-filter: blur(1.5px); }
 .import-art { width: 44px; height: 44px; border-radius: 8px; vertical-align: middle; margin-right: 8px; object-fit: cover; }
+
+/* trending picture + formatting bar */
+.trend .trend-vis { position: relative; display: block; aspect-ratio: 16 / 9; margin: -24px -24px 0; border-radius: var(--radius) var(--radius) 0 0; overflow: hidden; background: var(--surface-2, var(--surface)); }
+.trend .trend-vis img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.trend .trend-vis .media, .trend .trend-vis figure { margin: 0; width: 100%; height: 100%; }
+.fmt-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.fmt-bar .btn-small { min-width: 40px; font-size: 1.05rem; }
+.prose strong { font-weight: 700; } .prose em { font-style: italic; }

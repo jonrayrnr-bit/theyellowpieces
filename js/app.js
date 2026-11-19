@@ -31,7 +31,14 @@ const ago = (iso) => {
 };
 const params = () => new URLSearchParams(location.hash.split('#')[1]?.split('?')[1] || '');
 const go = (hash) => { location.hash = hash; };
-const excerpt = (s, n) => (s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s);
+const plain = (s) => String(s ?? '').replace(/<\/?(b|strong|i|em)>/gi, '').replace(/\*\*([^*]+?)\*\*/g, '$1').replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1$2');
+const excerpt = (s, n) => { s = plain(s); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, '') + '…' : s; };
+// Bold and italic: **bold**, *italic* (also <b>/<i> from pasted or exported text). Everything else stays escaped plain text.
+const rich = (s) => esc(s)
+  .replace(/&lt;(b|strong)&gt;([\s\S]*?)&lt;\/\1&gt;/gi, '<strong>$2</strong>')
+  .replace(/&lt;(i|em)&gt;([\s\S]*?)&lt;\/\1&gt;/gi, '<em>$2</em>')
+  .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+  .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
 function toast(msg) {
   const t = document.createElement('div');
   t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
@@ -170,6 +177,11 @@ async function viewHome() {
   };
 
   main.innerHTML = `<div class="home">
+    ${feat.length ? `<section aria-labelledby="feat-h"><div class="sec-head"><div><p class="kicker">Featured</p><h2 class="section-title" id="feat-h">Yellow pieces to start with</h2></div>
+      <p class="sec-blurb">Lines and stories from J. Ray's journals. Read one, then take a side.</p></div>
+      <div class="featured">${tile(feat[0], true)}${feat.length > 1 ? `<div class="featured-side">${feat.slice(1).map((p) => tile(p, false)).join('')}</div>` : ''}</div>
+    </section>` : ''}
+
     ${pairList.length ? `<section class="pick" aria-labelledby="pick-h">
       <div class="pick-head"><h1 id="pick-h">Which one speaks to you?</h1>
         <p class="lede">Two yellow pieces, side by side. Pick one, then say why. What comes to mind?</p></div>
@@ -177,14 +189,10 @@ async function viewHome() {
     </section>` : `<section class="pick"><div class="pick-head"><h1>Highlight the best words in your life.</h1>
       <p class="lede">Great lines, words of wisdom, and the stories behind them: the pieces worth passing down.</p></div></section>`}
 
-    ${feat.length ? `<section aria-labelledby="feat-h"><div class="sec-head"><div><p class="kicker">Featured</p><h2 class="section-title" id="feat-h">Yellow pieces to start with</h2></div>
-      <p class="sec-blurb">Lines and stories from J. Ray's journals. Read one, then take a side.</p></div>
-      <div class="featured">${tile(feat[0], true)}${feat.length > 1 ? `<div class="featured-side">${feat.slice(1).map((p) => tile(p, false)).join('')}</div>` : ''}</div>
-    </section>` : ''}
-
     ${trending.length ? `<section aria-labelledby="trend-h"><div class="sec-head"><div><p class="kicker">Trending</p><h2 class="section-title" id="trend-h">Join the conversation</h2></div>
       <p class="sec-blurb">See what's being said: the pieces drawing the most replies this week.</p></div>
       <ol class="trend">${trending.map((p, i) => `<li><a href="#/p/${esc(p.id)}">
+        ${visualHtml(p) ? `<span class="trend-vis">${visualHtml(p)}</span>` : ''}
         <span class="top"><span>${esc(KINDS[p.kind].name)}</span><span>#${i + 1}</span></span>
         <span class="line">${p.kind === 'quote' ? `“${esc(excerpt(p.body, 140))}”` : esc(p.title ? p.title + ' — ' + excerpt(p.body, 90) : excerpt(p.body, 140))}</span>
         <span class="by">@${esc(p.author?.username)}</span>
@@ -326,23 +334,23 @@ async function viewPiece(id) {
   if (p.kind === 'quote' && p.photo_has_text) {
     content = `<div class="hero-media"><div class="media-box">${photoHtml(p, { tone: false })}</div></div>
       ${p.source ? `<p class="from">Filed under <b>${esc(p.source.name)}</b></p>` : ''}
-      ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${esc(p.writeup)}</p>` : ''}`;
+      ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${rich(p.writeup)}</p>` : ''}`;
   } else if (p.kind === 'quote') {
     content = `${quoteCardHtml(p, { large: true, photo: db.photoUrl(p.photo_path) })}
       ${p.source ? `<p class="from">Filed under <b>${esc(p.source.name)}</b></p>` : ''}
-      ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${esc(p.writeup)}</p>` : ''}`;
+      ${p.writeup ? `<h2 class="sub">Why it stuck</h2><p class="prose">${rich(p.writeup)}</p>` : ''}`;
   } else if (p.kind === 'sketch') {
     content = `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>
       ${p.aiming_for ? `<p class="aim"><b>What I'm going for:</b> ${esc(p.aiming_for)}</p>` : ''}
-      <h2 class="sub">Where I'm at now</h2><pre class="scene">${esc(p.body)}</pre>
+      <h2 class="sub">Where I'm at now</h2><pre class="scene">${rich(p.body)}</pre>
       ${p.started_at ? `<details><summary>Where I started</summary><pre class="scene">${esc(p.started_at)}</pre></details>` : ''}`;
   } else if (p.kind === 'photo') {
     content = `<div class="hero-media"><div class="media-box" style="aspect-ratio:auto"><img src="${esc(db.photoUrl(p.photo_path))}" alt="${esc(p.photo_alt)}" style="display:block;width:100%"></div></div>
-      <h1 class="sheet-title">${esc(p.title)}</h1>${p.body ? `<p class="prose">${esc(p.body)}</p>` : ''}`;
+      <h1 class="sheet-title">${esc(p.title)}</h1>${p.body ? `<p class="prose">${rich(p.body)}</p>` : ''}`;
   } else {
     content = `${p.photo_path ? `<div class="hero-media"><div class="media-box wide">${photoHtml(p, { tone: false })}</div></div>` : ''}
       ${p.title ? `<h1 class="sheet-title"><span class="hl hl-${esc(p.color)}">${esc(p.title)}</span></h1>` : ''}
-      <div class="prose ${p.kind === 'piece' || p.kind === 'poem' ? 'verse' : ''}">${esc(p.body)}</div>`;
+      <div class="prose ${p.kind === 'piece' || p.kind === 'poem' ? 'verse' : ''}">${rich(p.body)}</div>`;
   }
   main.innerHTML = `
     <article class="sheet paper ${p.image_svg ? 'has-bg' : ''}">
@@ -855,6 +863,7 @@ async function viewEdit(id) {
     <p class="kicker">${esc(k.name)} · @${esc(p.author?.username)}</p>
     <h1 class="sheet-title">Edit</h1>
     ${p.kind !== 'quote' ? field('e-title', 'Title', p.title) : ''}
+    <div class="fmt-bar" role="toolbar" aria-label="Text formatting"><button type="button" class="btn-ghost btn-small" data-fmt="**" title="Bold (Ctrl+B)" aria-label="Bold"><b>B</b></button><button type="button" class="btn-ghost btn-small" data-fmt="*" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button><span class="hint">Select words, then tap B or I. Saved as **bold** and *italic*.</span></div>
     ${field('e-body', p.kind === 'quote' ? 'The line' : p.kind === 'photo' ? 'Caption' : p.kind === 'sketch' ? 'Where I\'m at now' : 'The words', p.body, { area: true, rows: p.kind === 'quote' || p.kind === 'photo' ? 3 : 14, max: p.kind === 'quote' ? 400 : 20000 })}
     ${p.kind === 'quote' ? `<div class="row"><div class="stack">${field('e-said', 'Who said it', p.said_by)}</div>
       <div class="stack"><label for="e-src">Where it came from</label><select id="e-src">${srcs.map((x) => `<option value="${esc(x.slug)}" ${x.slug === p.source_slug ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div></div>
@@ -887,6 +896,18 @@ async function viewEdit(id) {
 
   const f = document.getElementById('edit');
   const val = (id) => (f.querySelector('#' + id)?.value ?? null);
+  // Bold / Italic: wrap the selection in the textarea you last used (or unwrap if already wrapped).
+  let lastTa = f.querySelector('#e-body');
+  f.querySelectorAll('textarea').forEach((t) => t.addEventListener('focus', () => { lastTa = t; }));
+  const wrap = (m) => {
+    const t = lastTa; if (!t) return;
+    const { selectionStart: a, selectionEnd: z, value: v } = t, n = m.length;
+    if (v.slice(a - n, a) === m && v.slice(z, z + n) === m) { t.value = v.slice(0, a - n) + v.slice(a, z) + v.slice(z + n); t.setSelectionRange(a - n, z - n); }
+    else { t.value = v.slice(0, a) + m + v.slice(a, z) + m + v.slice(z); t.setSelectionRange(a + n, z + n); }
+    t.focus();
+  };
+  f.querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()) || b.addEventListener('click', () => wrap(b.dataset.fmt)));
+  f.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.target.tagName === 'TEXTAREA' && ['b', 'i'].includes(e.key.toLowerCase())) { e.preventDefault(); lastTa = e.target; wrap(e.key.toLowerCase() === 'b' ? '**' : '*'); } });
   let prepared = null; // { blob, width, height, origWidth, origHeight }
   const prep = async () => {
     const file = f.querySelector('#e-file').files[0];
