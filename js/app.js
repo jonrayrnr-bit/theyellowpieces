@@ -17,6 +17,9 @@ const KINDS = {
   sketch: { slug: 'sketches', name: 'Sketches & Scratches',  blurb: 'The Works In Progress section for pieces under construction. Discussions and feedback are encouraged (Hard hat recommended, but not required.)', cta: 'Share a sketch' },
   photo:  { slug: 'pictures', name: 'Pictures',   blurb: 'Favorite photos from the places in between.', cta: 'Add a picture' },
 };
+// Sections kept out of sight until there is something in them (their pieces still work if someone has the link).
+const HIDDEN = new Set(['story', 'humor']);
+const UNDER_CONSTRUCTION = new Set(['sketch']);
 const kindBySlug = (slug) => Object.keys(KINDS).find((k) => KINDS[k].slug === slug);
 
 // ---------- helpers ----------
@@ -253,16 +256,13 @@ async function viewHome() {
 
     <section><div class="band"><div><h2>Your turn. What's a line you still carry?</h2>
       <p>A family motto, something a grandparent said, words that came in handy at a surprising time. Share it, and tell us who said it and why it stuck.</p></div>
-      <div class="band-actions"><a class="btn-dark" href="#/share/quote">Share a quote</a><a class="btn-ghost" href="#/share/story">Share a story</a></div></div></section>
+      <div class="band-actions"><a class="btn-dark" href="#/share/quote">Share a quote</a><a class="btn-ghost" href="#/share/piece">Share a piece</a></div></div></section>
 
     ${await row('quote', 'Lines worth passing down')}
     ${await row('piece', 'Prose and pieces')}
     ${await row('poem', 'Poems and songs')}
     ${await row('line', 'Lines and quips')}
-    ${await row('story', 'Words that changed something')}
     ${await row('photo', 'Pictures along the way')}
-    ${await row('humor', 'Still makes us laugh')}
-    ${await row('sketch', 'Works in progress')}
 
     <section><div class="learn-teaser"><div><p class="kicker">Coming soon</p><h2 class="section-title">Learn to Write</h2>
       <p>Free writing lessons: pieces with worksheets, prompts and further reading, and the writer's own take, unlocked once enough readers weigh in.</p></div>
@@ -367,6 +367,29 @@ async function viewSection(kind) {
         <a class="btn" href="#/share/${kind}">${esc(k.cta)}</a></div>
     </header>
     ${await cards(list)}`;
+}
+
+function viewSketches() {
+  const k = KINDS.sketch;
+  document.title = `${k.name} · The Yellow Pieces`;
+  const stills = [
+    ['img/lil-jp/turnaround.jpg', 'Lil JP character sheet: a freckled, red-haired boy in a striped shirt and rolled-up cords, drawn from the front, side and back, plus a pencil sketch.'],
+    ['img/lil-jp/classroom.jpg', 'Lil JP and a dark-haired friend read aloud in front of a classroom while their teacher laughs and the other students cry.'],
+    ['img/lil-jp/kitchen.jpg', 'Lil JP writing late at night under a kitchen lamp while his mom watches over his shoulder.'],
+    ['img/lil-jp/incident.jpg', 'A school incident report for JP, 7th grade, Fall 1994, clipped beside a blue-pen drawing of two boys and a giant cookie.'],
+  ];
+  main.innerHTML = `
+    <header class="page-head">
+      <p class="kicker">Under construction</p>
+      <h1>${esc(k.name)}</h1>
+      <p class="lede">This corner is still being built. Hard hats on. Pieces still in progress will land here soon, with room for your notes and feedback.</p>
+    </header>
+    <section class="construction" aria-labelledby="soon-h">
+      <div class="sec-head"><div><p class="kicker">A peek ahead</p><h2 class="section-title" id="soon-h">Stills from the Lil JP series</h2></div></div>
+      <ul class="stills">${stills.map(([src, alt]) => `
+        <li><figure><img src="${src}" alt="${esc(alt)}" loading="lazy" decoding="async"><figcaption><span class="soon-tag">Coming Soon…</span> Lil JP</figcaption></figure></li>`).join('')}
+      </ul>
+    </section>`;
 }
 
 async function viewColor(slug) {
@@ -494,7 +517,7 @@ async function viewShareChooser() {
   const admin = await db.isAdmin();
   main.innerHTML = `
     <header class="page-head"><h1>Share a yellow piece</h1><p class="lede">What would you like to pass along?</p></header>
-    <ul class="choices">${Object.entries(KINDS).filter(([kind]) => kind !== 'photo' || admin).map(([kind, k]) => `
+    <ul class="choices">${Object.entries(KINDS).filter(([kind]) => !HIDDEN.has(kind) && !UNDER_CONSTRUCTION.has(kind) && (kind !== 'photo' || admin)).map(([kind, k]) => `
       <li><a class="paper choice" href="${kind === 'photo' ? '#/admin' : '#/share/' + kind}"><b>${esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
     </ul>`;
 }
@@ -1156,10 +1179,12 @@ async function route() {
   main.setAttribute('aria-busy', 'true');
   try {
     if (!parts.length) await viewHome();
+    else if (kindBySlug(parts[0]) && HIDDEN.has(kindBySlug(parts[0]))) { history.replaceState(null, '', location.pathname + '#/'); await viewHome(); }
+    else if (kindBySlug(parts[0]) === 'sketch') viewSketches();
     else if (kindBySlug(parts[0])) await viewSection(kindBySlug(parts[0]));
     else if (parts[0] === 'p' && parts[1]) await viewPiece(decodeURIComponent(parts[1]));
     else if (parts[0] === 'color' && parts[1]) await viewColor(decodeURIComponent(parts[1]));
-    else if (parts[0] === 'share' && parts[1] && KINDS[parts[1]]) await viewShare(parts[1]);
+    else if (parts[0] === 'share' && parts[1] && KINDS[parts[1]] && !HIDDEN.has(parts[1]) && !UNDER_CONSTRUCTION.has(parts[1])) await viewShare(parts[1]);
     else if (parts[0] === 'share') await viewShareChooser();
     else if (parts[0] === 'about') viewAbout();
     else if (parts[0] === 'privacy') viewPrivacy();
