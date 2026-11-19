@@ -8,10 +8,10 @@ export const SUPABASE_KEY = 'sb_publishable_FBVkPP8rYLRnDn9wQOd9aA_VARaftPZ';
 // Supabase's JavaScript library, loaded from a CDN (pinned version).
 export const SUPABASE_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 
-// The "From Jon Ray" strip on the homepage. Edit the words here any time.
+// The "From J.P. Ray" strip on the homepage. Edit the words here any time.
 // Photo: save your picture as img/jray.jpg in the site folder (until then, the initials show).
 export const ABOUT = {
-  name: 'Jon Ray',
+  name: 'J.P. Ray',
   initials: 'JR',
   photo: 'img/jray.jpg',
   headline: 'Hi, I\'m Jon Ray.',
