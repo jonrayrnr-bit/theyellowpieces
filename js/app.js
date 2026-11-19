@@ -110,7 +110,8 @@ function stuckBtn(p, on) {
   return `<button class="stuck ${on ? 'on' : ''}" data-stuck="${esc(p.id)}" aria-pressed="${on}" aria-label="This stuck with me">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16l-7-4-7 4z"/></svg><span>${p.stuck_count}</span></button>`;
 }
-function card(p, stuck, bare = false) {
+function card(p, stuck) {
+  const bare = p.kind === 'photo';
   const k = KINDS[p.kind];
   let inner;
   if (p.kind === 'quote') {
