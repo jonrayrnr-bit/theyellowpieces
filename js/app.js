@@ -119,8 +119,9 @@ function visualHtml(p, opts = {}) {
   if (p.image_svg) return `<div class="artvis">${artImg(p)}</div>`;
   return '';
 }
-const label = (p) => plain(p.title) || excerpt(p.body, 60);
-const labelHtml = (p) => (p.title ? ttl(p.title) : esc(excerpt(p.body, 60)));
+const NEEDS_WORDS = 'Untitled picture (needs words)';
+const label = (p) => plain(p.title) || excerpt(p.body, 60) || (p.photo_path ? NEEDS_WORDS : '');
+const labelHtml = (p) => (p.title ? ttl(p.title) : esc(excerpt(p.body, 60) || (p.photo_path ? NEEDS_WORDS : '')));
 
 // ---------- emoji reactions ----------
 const REACTIONS = [
@@ -413,7 +414,7 @@ async function viewPiece(id) {
   const [st, , user, comments, hl, cs, admin] = await Promise.all([db.myStuck([p.id]), loadReactions([p.id]), db.currentUser(), db.comments(p.id), db.highlightsFor(p.id), db.colors(), db.isAdmin()]);
   const mine = user && user.id === p.author_id;
   const k = KINDS[p.kind];
-  document.title = `${plain(p.title) || excerpt(p.body, 40)} · The Yellow Pieces`;
+  document.title = `${plain(p.title) || excerpt(p.body, 40) || 'A picture'} · The Yellow Pieces`;
   let content;
   if (p.kind === 'quote' && p.photo_has_text) {
     content = `<div class="hero-media"><div class="media-box">${photoHtml(p, { tone: false })}</div></div>
@@ -471,7 +472,7 @@ async function viewPiece(id) {
   if (p.image_svg) setPieceBg(p.image_svg);
   main.querySelector('[data-share]').onclick = async () => {
     const url = location.href;
-    try { if (navigator.share) await navigator.share({ title: 'The Yellow Pieces', text: p.kind === 'quote' ? `“${p.body}”` : (p.title || ''), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch {}
+    try { if (navigator.share) await navigator.share({ title: 'The Yellow Pieces', text: p.kind === 'quote' ? (p.body ? `“${p.body}”` : '') : (p.title || ''), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch {}
   };
   const dl = main.querySelector('[data-download]');
   if (dl) dl.onclick = async () => {
@@ -889,7 +890,6 @@ async function viewAdmin() {
   { const drop = document.getElementById('bc-drop'), inp = document.getElementById('bc-files'), list = document.getElementById('bc-list');
     const postBtn = document.getElementById('bc-post'), clearBtn = document.getElementById('bc-clear'), opts = document.getElementById('bc-opts'), bmsg = document.getElementById('bc-msg');
     let files = [];
-    const nice = (n) => n.replace(/\.[^.]+$/, '').replace(/^\d+\s+/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
     const lines = new Map(); // file name -> full line, from a dropped list (.csv with columns #, Quote, File)
     const parseCsv = (t) => { const rows = []; let r = [], f = '', q = false;
       for (let i = 0; i < t.length; i++) { const c = t[i];
@@ -907,7 +907,7 @@ async function viewAdmin() {
       for (const file of fl) if (/\.csv$/i.test(file.name)) { const rows = parseCsv((await file.text()).replace(/^\uFEFF/, ''));
         const h = rows[0].map((x) => x.trim().toLowerCase()), qi = h.indexOf('quote'), fi = h.indexOf('file');
         if (qi > -1 && fi > -1) rows.slice(1).forEach((r) => { if (r[fi]) lines.set(r[fi].trim(), r[qi].trim()); }); }
-      for (const file of fl) if (/^image\//.test(file.type)) files.push({ file, url: URL.createObjectURL(file), line: nice(file.name) });
+      for (const file of fl) if (/^image\//.test(file.type)) files.push({ file, url: URL.createObjectURL(file), line: '' });
       files.forEach((x) => { if (lines.has(x.file.name)) x.line = lines.get(x.file.name); });
       files.sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); draw(); };
     inp.onchange = async () => { await add([...inp.files]); inp.value = ''; };
@@ -920,7 +920,7 @@ async function viewAdmin() {
       for (let i = 0; i < files.length; i++) {
         const x = files[i]; bmsg.textContent = `Posting ${i + 1} of ${files.length}…`;
         try {
-          const line = (x.line || '').trim() || nice(x.file.name);
+          const line = (x.line || '').trim(); // left blank when you haven't typed the words: file names never become captions
           const path = await db.uploadPhoto(x.file, 1600);
           const id = await db.createPiece({ kind: 'quote', body: line, said_by: '', source_slug: null, writeup: '', backdrop: 'aged', color: 'yellow', visibility: 'public', status: 'published' });
           await db.setPieceMedia(id, { photo_path: path, photo_has_text: true, photo_alt: line, featured: (ok === 0 && document.getElementById('bc-feat').checked) || undefined });
