@@ -981,7 +981,8 @@ async function viewAdmin() {
     const have = new Set(recent.map((p) => (p.title || '').trim().toLowerCase()).filter(Boolean));
     const byTitle = new Map(recent.map((p) => [(p.title || '').trim().toLowerCase(), p]));
     const items = data.pieces.map((p) => ({ kind: DI_KINDS.includes(p.kind) ? p.kind : 'piece', title: String(p.title || '').trim().slice(0, 140), body: String(p.body || '').trim().slice(0, 20000),
-      color: String(p.color || 'yellow'), backdrop: 'aged', visibility: 'public', status: 'published', image_svg: cleanSvg(p.image_svg) })).filter((p) => p.body);
+      color: String(p.color || 'yellow'), backdrop: 'aged', visibility: 'public', status: 'published', image_svg: cleanSvg(p.image_svg),
+      from_title: String(p.from_title || '').trim().slice(0, 140), passage: String(p.passage || '').trim().slice(0, 6000) })).filter((p) => p.body);
     diList.innerHTML = `<ul class="admin-list">${items.map((p, i) => { const dup = p.title && have.has(p.title.toLowerCase()); const ex = dup ? byTitle.get(p.title.toLowerCase()) : null;
       const addImg = ex && p.image_svg && ex.image_svg !== p.image_svg;
       return `<li>
@@ -995,8 +996,9 @@ async function viewAdmin() {
       btn.disabled = true; let ok = 0, bad = [];
       for (const p of picks) {
         try {
-          const { image_svg, ...fields } = p;
+          const { image_svg, from_title, passage, ...fields } = p;
           const id = await db.createPiece(fields); ok++;
+          if (passage) { try { await db.setPassage(id, { from_title, passage }); } catch (err) { bad.push(`${p.title || excerpt(p.body, 40)} passage (${err.message})`); } }
           if (image_svg) { try { await db.setPieceImage(id, image_svg); } catch (err) { bad.push(`${p.title || excerpt(p.body, 40)} picture (${err.message})`); } }
           diMsg.textContent = `Posted ${ok} of ${picks.length}…`;
         }
