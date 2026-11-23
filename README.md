@@ -13,7 +13,7 @@ phone like an app (a PWA).
 | --- | --- |
 | `index.html` | The page shell |
 | `css/style.css` | The "Lemon Dusk" look: blue-black ground, cream text, golden lemon; Newsreader + Instrument Sans |
-| `js/app.js` | Pages: home (pick-one, featured, trending), sections, a piece, sharing, admin, colors, about, Learn to Write, profile, search, sign-in |
+| `js/app.js` | Pages: home (pick-one, featured, trending), sections, a piece, sharing, admin, colors, about, Writer's Corner, profile, search, sign-in |
 | `js/card.js` | Quote cards: the quote over a background, and the "Save as image" PNG (1080×1350) |
 | `js/data.js` | Talks to Supabase (or runs demo mode) |
 | `js/config.js` | Supabase project URL and publishable key (both public) |
@@ -33,7 +33,7 @@ phone like an app (a PWA).
    reply on the piece they chose. A new pair comes up every 10 seconds until they pick (pausable).
 2. **Featured**: the three newest featured pieces.
 3. **Trending — Join the conversation**: weighted by replies and "stuck with me", newest first.
-4. **Your turn**: the share band, then a row for each section and the Learn to Write teaser.
+4. **Your turn**: the share band, then a row for each section and the Writer's Corner teaser.
 
 At launch these are filled with J. Ray's pieces; members' posts take over as they come in.
 
@@ -67,7 +67,7 @@ under Edit. Run `supabase/update-2026-11-18-piece-images.sql` once before deploy
 - **Sketches & Scratches** (works in progress) — a short scene, what the writer is going for,
   where it started, and notes from readers.
 - **Pictures** — photos from along the way (admins post these from the admin page).
-- **Learn to Write** — a "coming soon" page for the free writing lessons and worksheets.
+- **Writer's Corner** — a "coming soon" page for the free writing lessons and worksheets.
 
 Every piece has a highlighter color chosen by the writer (yellow, blue, green, red,
 orange, purple, gray), and readers can add their own highlights. "Find by feeling"

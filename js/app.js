@@ -265,8 +265,8 @@ async function viewHome() {
     ${await row('line', 'Lines and quips')}
     ${await row('photo', 'Pictures along the way')}
 
-    <section><div class="learn-teaser"><div><p class="kicker">Coming soon</p><h2 class="section-title">Learn to Write</h2>
-      <p>Free writing lessons: pieces with worksheets, prompts and further reading, and the writer's own take, unlocked once enough readers weigh in.</p></div>
+    <section><div class="learn-teaser"><div><p class="kicker">Coming soon</p><h2 class="section-title">Writer's Corner</h2>
+      <p>Work on your writing with these free lessons. Pieces with worksheets, prompts and further reading, and the writer's own take, unlocked once enough readers weigh in.</p></div>
       <a class="btn-ghost" href="#/learn">Take a look →</a></div></section>
   </div>`;
   if (pairList.length) startPick(pairList);
@@ -705,11 +705,11 @@ function viewPrivacy() {
 }
 
 function viewLearn() {
-  document.title = 'Learn to Write · The Yellow Pieces';
+  document.title = 'Writer\'s Corner · The Yellow Pieces';
   main.innerHTML = `
     <article class="sheet paper prose-page">
       <p class="pill">Coming soon</p>
-      <h1 class="sheet-title">Learn to Write</h1>
+      <h1 class="sheet-title">Writer's Corner</h1>
       <p>Free writing lessons, built the way a good class works: a piece to read, then questions that make you a sharper reader.</p>
       <ul class="plain">
         <li><b>Pieces with prompts</b> — stories, poems and letters, each with teacher-style questions on what the writer is trying to capture.</li>
