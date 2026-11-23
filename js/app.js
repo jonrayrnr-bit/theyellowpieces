@@ -441,6 +441,8 @@ async function viewPiece(id) {
     <article class="sheet paper ${p.image_svg ? 'has-bg' : ''}">
       ${p.status === 'draft' ? `<p class="pill">Draft · only you can see this</p>` : ''}
       ${content}
+      ${p.passage ? `<div class="excerpt"><p>An excerpt from <i>${esc(p.from_title || 'a longer piece')}</i></p>
+        <a class="btn-dark" href="#/passage/${esc(p.id)}">Read the passage →</a></div>` : ''}
       ${byline(p)}
       <div class="actions">
         ${stuckBtn(p, st.has(p.id))}${rxHtml(p.id)}
@@ -521,6 +523,41 @@ async function viewShareChooser() {
     <ul class="choices">${Object.entries(KINDS).filter(([kind]) => !HIDDEN.has(kind) && !UNDER_CONSTRUCTION.has(kind) && (kind !== 'photo' || admin)).map(([kind, k]) => `
       <li><a class="paper choice" href="${kind === 'photo' ? '#/admin' : '#/share/' + kind}"><b>${esc(k.name)}</b><span>${esc(k.blurb)}</span></a></li>`).join('')}
     </ul>`;
+}
+
+
+// ---------- passage page: the paragraph around a line, with the line highlighted ----------
+const PASSAGE_SKY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" preserveAspectRatio="xMidYMax slice"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1F1B3A"/><stop offset=".5" stop-color="#3B2C55"/><stop offset=".8" stop-color="#8E5A78"/><stop offset=".93" stop-color="#C98E62"/></linearGradient></defs><rect width="400" height="500" fill="url(#s)"/><circle cx="268" cy="452" r="24" fill="#E9B930" opacity=".7"/><path d="M0 460 L60 430 L110 445 L170 410 L230 442 L290 425 L340 440 L400 418 L400 500 L0 500 Z" fill="#33254A"/><path d="M0 480 L80 458 L150 474 L220 454 L300 478 L360 466 L400 474 L400 500 L0 500 Z" fill="#1A1429"/></svg>`;
+function passageHtml(passage, line) {
+  const want = plain(line).trim();
+  const norm = (t) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+  let marked = false;
+  return String(passage).split(/\n\s*\n/).map((para) => {
+    const i = !marked && want ? norm(para).toLowerCase().indexOf(norm(want).toLowerCase()) : -1;
+    if (i < 0) return `<p>${esc(para.trim())}</p>`;
+    marked = true;
+    return `<p>${esc(para.slice(0, i))}<mark class="hlw">${esc(para.slice(i, i + want.length))}</mark>${esc(para.slice(i + want.length))}</p>`;
+  }).join('');
+}
+async function viewPassage(id) {
+  const p = await db.getPiece(id);
+  if (!p || !p.passage) { main.innerHTML = `<p class="empty">That passage isn't here. <a href="#/">Go home</a></p>`; return; }
+  const [st] = await Promise.all([db.myStuck([p.id]), loadReactions([p.id])]);
+  const full = p.from_piece_id ? await db.getPiece(p.from_piece_id).catch(() => null) : null;
+  document.title = `${p.from_title || 'The passage'} · The Yellow Pieces`;
+  setPieceBg(PASSAGE_SKY);
+  document.getElementById('piece-bg').classList.add('passage-bg');
+  main.innerHTML = `<article class="sheet passage">
+    <p class="kicker">The passage</p>
+    ${p.from_title ? `<h1 class="sheet-title passage-title">${esc(p.from_title)}</h1>` : ''}
+    <div class="prose passage-text">${passageHtml(p.passage, p.body)}</div>
+    <div class="actions">
+      ${stuckBtn(p, st.has(p.id))}${rxHtml(p.id)}
+      ${full ? `<a class="btn" href="#/p/${esc(full.id)}">Read the whole piece →</a>` : ''}
+      <a class="btn-ghost" href="#/p/${esc(p.id)}">← Back to the line</a>
+    </div>
+    ${full ? '' : `<p class="hint">“Read the whole piece” shows up once the full piece is posted.</p>`}
+  </article>`;
 }
 
 function colorPicker(cs, selected = 'yellow') {
@@ -1040,6 +1077,12 @@ async function viewEdit(id) {
       ${field('e-writeup', 'Why it stuck', p.writeup, { area: true, rows: 5, max: 3000 })}` : ''}
     ${p.kind === 'sketch' ? `${field('e-aim', 'What I\'m trying to do with this scene', p.aiming_for, { area: true, rows: 2, max: 1500 })}
       ${field('e-start', 'Where I started', p.started_at, { area: true, rows: 5, max: 3000 })}` : ''}
+    ${p.kind === 'quote' || p.kind === 'line' ? `<fieldset class="stack" style="border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-top:14px">
+      <legend class="label">From a longer piece <span class="opt">(optional: makes this line a teaser)</span></legend>
+      ${field('e-from', 'From piece', p.from_title, { hint: '(its title, shown as “An excerpt from …”)' })}
+      ${field('e-passage', 'The passage', p.passage, { area: true, rows: 7, max: 6000, hint: '(the paragraph or so around the line; blank lines split paragraphs; the line is highlighted automatically)' })}
+      ${field('e-fullurl', 'Full piece link', p.from_piece_id ? location.origin + location.pathname + '#/p/' + p.from_piece_id : '', { max: 300, hint: '(paste its page address once it is posted; leave blank until then)' })}
+    </fieldset>` : ''}
     ${colorPicker(cs, p.color)}
     <label class="check"><input type="checkbox" id="e-feat" ${p.featured ? 'checked' : ''}> Feature it on the homepage</label>
 
@@ -1099,6 +1142,12 @@ async function viewEdit(id) {
       if (p.kind === 'quote') Object.assign(fields, { said_by: val('e-said').trim(), source_slug: val('e-src'), writeup: val('e-writeup').trim() });
       if (p.kind === 'sketch') Object.assign(fields, { aiming_for: val('e-aim').trim(), started_at: val('e-start').trim() });
       await db.updatePiece(p.id, fields);
+      if (f.querySelector('#e-from')) {
+        const url = val('e-fullurl').trim();
+        const m = url && url.match(/#\/p\/([0-9a-f-]{8,})/i);
+        if (url && !m) throw new Error('That link doesn\'t look like a piece address (it should end in #/p/…).');
+        await db.setPassage(p.id, { from_title: val('e-from').trim(), passage: val('e-passage').trim(), from_piece_id: m ? m[1] : null });
+      }
       if (val('e-kind') && val('e-kind') !== p.kind) await db.setPieceKind(p.id, val('e-kind'));
 
       const media = { featured: f.querySelector('#e-feat').checked, photo_alt: val('e-alt').trim(), photo_has_text: f.querySelector('#e-text').checked };
@@ -1183,6 +1232,7 @@ async function route() {
     else if (kindBySlug(parts[0]) === 'sketch') viewSketches();
     else if (kindBySlug(parts[0])) await viewSection(kindBySlug(parts[0]));
     else if (parts[0] === 'p' && parts[1]) await viewPiece(decodeURIComponent(parts[1]));
+    else if (parts[0] === 'passage' && parts[1]) await viewPassage(decodeURIComponent(parts[1]));
     else if (parts[0] === 'color' && parts[1]) await viewColor(decodeURIComponent(parts[1]));
     else if (parts[0] === 'share' && parts[1] && KINDS[parts[1]] && !HIDDEN.has(parts[1]) && !UNDER_CONSTRUCTION.has(parts[1])) await viewShare(parts[1]);
     else if (parts[0] === 'share') await viewShareChooser();

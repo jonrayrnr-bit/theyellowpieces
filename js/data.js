@@ -29,7 +29,7 @@ export const onAuth = (fn) => listeners.add(fn);
 
 const PIECE_SELECT =
   'id,kind,title,body,said_by,source_slug,writeup,started_at,aiming_for,color,backdrop,visibility,status,stuck_count,created_at,author_id,' +
-  'photo_path,photo_has_text,photo_alt,image_svg,featured,featured_at,comment_count,' +
+  'photo_path,photo_has_text,photo_alt,image_svg,featured,featured_at,comment_count,from_title,passage,from_piece_id,' +
   'author:profiles!pieces_author_id_fkey(username),source:sources!pieces_source_slug_fkey(name,slug)';
 
 function check({ data, error }) {
@@ -181,6 +181,11 @@ export async function updatePiece(id, fields) {
     p_writeup: fields.writeup ?? null, p_aiming_for: fields.aiming_for ?? null, p_started_at: fields.started_at ?? null,
     p_color: fields.color ?? null, p_source_slug: fields.source_slug ?? null,
   }));
+}
+// Admin: set which piece a line is an excerpt from, the passage around it, and (optionally) the full piece's id.
+export async function setPassage(id, { from_title = '', passage = '', from_piece_id = null } = {}) {
+  if (mode === 'demo') { Object.assign(demo.pieces.find((p) => p.id === id), { from_title, passage, from_piece_id }); return; }
+  check(await sb.rpc('admin_set_passage', { p_id: id, p_from_title: from_title, p_passage: passage, p_from_piece: from_piece_id }));
 }
 // Admin: move a piece to another section (quote, piece, poem, line, story, humor, sketch, photo).
 export async function setPieceKind(id, kind) {
@@ -439,7 +444,7 @@ const demo = {
   hydrate(p) {
     const src = demo.sources.find((s) => s.slug === p.source_slug);
     return {
-      photo_path: '', photo_has_text: false, photo_alt: '', featured: false,
+      photo_path: '', photo_has_text: false, photo_alt: '', featured: false, from_title: '', passage: '', from_piece_id: null,
       ...p,
       comment_count: demo.comments.filter((c) => c.piece_id === p.id).length,
       author: { username: (demo.profiles.find((x) => x.id === p.author_id) || {}).username || 'someone' },
